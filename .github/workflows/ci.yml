@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # The format contract, on Linux because it is plain JavaScript with no
+  # dependencies and there is nothing Windows-specific about twenty
+  # comparisons. The Windows job below is for the app.
+  format:
+    name: The lens rules still agree with the catalogue
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test
+        run: npm test
+
+      # The vectors in this repository are a copy. A rule tightened in
+      # kyron-lenses and not here means a lens passes the studio, gets
+      # published, and silently never appears on anybody's phone -- which is
+      # the whole failure the shared spec exists to prevent. So the copy is
+      # compared against the source on every run, and a drifted one fails
+      # here rather than in a log line on a stranger's handset.
+      - name: The vectors have not drifted from kyron-lenses
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            https://raw.githubusercontent.com/KyronLabs/kyron-lenses/main/format-vectors.json \
+            -o /tmp/upstream-vectors.json
+          if ! diff -q test/format-vectors.json /tmp/upstream-vectors.json >/dev/null; then
+            echo "test/format-vectors.json has drifted from kyron-lenses."
+            echo "Run: npm run vectors:refresh -- then fix whatever it breaks."
+            diff -u test/format-vectors.json /tmp/upstream-vectors.json | head -40
+            exit 1
+          fi
+          echo "The copy matches the catalogue's own spec."
