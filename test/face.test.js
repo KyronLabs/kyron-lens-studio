@@ -62,11 +62,14 @@ test('and the numbers it produces are ones the app will accept', () => {
 });
 
 test('an offset is measured from the anchor, not from the eyes', () => {
-  // 'chin' sits 1.48 gaps below the pupil midpoint: 200 + 148 = 348.
+  // Where the chin actually is on this face, rather than a number restated
+  // from the table -- which is how this test came to encode a wrong one.
+  const chin = upright.anchorAt('chin');
+
   const onTheChin = attachmentFor(
     upright,
     'chin',
-    { centre: { x: 300, y: 348 }, widthPx: 50 },
+    { centre: chin, widthPx: 50 },
     ASSET,
   );
   assert.ok(!('offsetY' in onTheChin), 'a sticker on the chin is not offset from it');
@@ -74,7 +77,7 @@ test('an offset is measured from the anchor, not from the eyes', () => {
   const belowIt = attachmentFor(
     upright,
     'chin',
-    { centre: { x: 300, y: 398 }, widthPx: 50 },
+    { centre: { x: chin.x, y: chin.y + 50 }, widthPx: 50 },
     ASSET,
   );
   assert.equal(belowIt.offsetY, 0.5);
@@ -86,10 +89,12 @@ test('the same lens lands in the same place on a bigger face', () => {
   const small = new FaceFrame({ x: 250, y: 200 }, { x: 350, y: 200 });
   const large = new FaceFrame({ x: 100, y: 500 }, { x: 300, y: 500 });
 
+  // Placed 40px right and 30px below the mouth on the small face.
+  const mouth = small.anchorAt('mouth');
   const attachment = attachmentFor(
     small,
     'mouth',
-    { centre: { x: 320, y: 310 }, widthPx: 65, rotation: 8 },
+    { centre: { x: mouth.x + 40, y: mouth.y + 30 }, widthPx: 65, rotation: 8 },
     ASSET,
   );
   const landed = placementFor(large, attachment);
@@ -97,8 +102,8 @@ test('the same lens lands in the same place on a bigger face', () => {
   // Twice the gap, so twice the width and twice the offset from the anchor.
   assert.ok(Math.abs(landed.widthPx - 130) < 1e-6, `width ${landed.widthPx}`);
   const anchor = large.anchorAt('mouth');
-  assert.ok(Math.abs(landed.centre.x - (anchor.x + 40)) < 1e-6);
-  assert.ok(Math.abs(landed.centre.y - (anchor.y + 30)) < 1e-6);
+  assert.ok(Math.abs(landed.centre.x - (anchor.x + 80)) < 1e-6);
+  assert.ok(Math.abs(landed.centre.y - (anchor.y + 60)) < 1e-6);
   assert.ok(Math.abs(landed.rotation - 8) < 1e-9);
 });
 

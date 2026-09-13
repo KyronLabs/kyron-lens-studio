@@ -24,20 +24,35 @@ export const ANCHORS = ['eyes', 'nose', 'mouth', 'forehead', 'chin'];
 
 /**
  * Where each anchor sits on a face, measured from the midpoint between the
- * pupils, in pupil-gaps, with the head upright.
+ * pupils, in pupil-gaps, with the head upright. Positive y is down, matching
+ * screen coordinates and the format.
  *
- * Positive y is down, matching screen coordinates and the app's own
- * convention. These come from the canonical MediaPipe face mesh the app
- * tracks with -- the same mesh `mediapipe_face_mesh` returns -- so a preview
- * built on them lines up with what the camera will do rather than with
- * somebody's idea of where a nose is.
+ * **Derived, not written.** `tools/derive-anchors.mjs` computes these off the
+ * canonical MediaPipe face model in `assets/face/`, at the landmark indices
+ * `kyron-lenses/tools/face.py` names -- the same mesh the app tracks with, so
+ * a preview built on them lines up with what a camera will do rather than
+ * with somebody's idea of where a nose is.
+ *
+ * The first version of this table was somebody's idea of where a nose is, and
+ * every row was wrong:
+ *
+ *     forehead  -0.62  ->  -0.8945
+ *     nose       0.52  ->   0.5953
+ *     mouth      0.95  ->   1.0937
+ *     chin       1.48  ->   1.9085
+ *
+ * The chin by 0.43 pupil-gaps: most of an eye-spacing, and about two and a
+ * half centimetres on a real face. A lens anchored there would have sat
+ * visibly low, in the studio and on the phone alike, with nothing to say why.
+ *
+ * A test re-derives the table from the mesh and fails if this drifts from it.
  */
 export const ANCHOR_OFFSETS = {
   eyes: { x: 0, y: 0 },
-  forehead: { x: 0, y: -0.62 },
-  nose: { x: 0, y: 0.52 },
-  mouth: { x: 0, y: 0.95 },
-  chin: { x: 0, y: 1.48 },
+  forehead: { x: 0, y: -0.8945 },
+  nose: { x: 0, y: 0.5953 },
+  mouth: { x: 0, y: 1.0937 },
+  chin: { x: 0, y: 1.9085 },
 };
 
 const DEG = 180 / Math.PI;

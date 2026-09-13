@@ -68,16 +68,44 @@ Refresh the vectors with `npm run vectors:refresh`.
 ## What is here
 
 ```
-src/format/lens.js    the rules — what the app will and will not draw
-src/format/face.js    pupil-gap geometry, both directions
-test/vectors.test.js  the 106 shared cases from kyron-lenses
-test/face.test.js     the geometry, including the property it all rests on
+src/format/lens.js     the rules — what the app will and will not draw
+src/format/face.js     pupil-gap geometry, both directions
+tools/derive-anchors   where each anchor is, measured off the canonical mesh
+assets/face/           MediaPipe's canonical face model, vendored
+test/vectors.test.js   the 106 shared cases from kyron-lenses
+test/face.test.js      the geometry, including the property it all rests on
+test/anchors.test.js   re-derives the anchor table and fails if it has drifted
 ```
 
 ```bash
-npm test        # 117 tests
+npm test        # 121 tests
 npm run vectors # just the shared format contract
+npm run anchors # print the anchor table, derived from the mesh
 ```
+
+### The anchors are measured, not written down
+
+`ANCHOR_OFFSETS` says where the forehead, nose, mouth and chin sit relative to
+the pupils. The first version was four numbers somebody sensible wrote down,
+and **every one of them was wrong**:
+
+| anchor | written down | measured |
+|:--|--:|--:|
+| forehead | −0.62 | **−0.8945** |
+| nose | 0.52 | **0.5953** |
+| mouth | 0.95 | **1.0937** |
+| chin | 1.48 | **1.9085** |
+
+The chin by 0.43 pupil-gaps — most of an eye-spacing, about two and a half
+centimetres on a real face. A lens anchored there would have sat visibly low
+in the studio *and* on the phone, agreeing with itself the whole way and
+matching nothing.
+
+They now come out of `assets/face/canonical_face_model.obj` — MediaPipe's own
+mesh, the one `mediapipe_face_mesh` gives the app — at the landmark indices
+`kyron-lenses/tools/face.py` names. `npm test` re-derives the table on every
+run and fails if the source drifts from the mesh, so they stay checked data
+rather than remembered data.
 
 `face.js` carries the part that is hardest to retrofit and easiest to get
 subtly wrong:
