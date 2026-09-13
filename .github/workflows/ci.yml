@@ -19,6 +19,9 @@ jobs:
         with:
           node-version: '22'
 
+      # No install before the tests: everything under src/format and src/app
+      # that a test touches is plain JavaScript with no dependencies, which is
+      # the property that keeps this job a few seconds long.
       - name: Test
         run: npm test
 
@@ -41,3 +44,43 @@ jobs:
             exit 1
           fi
           echo "The copy matches the catalogue's own spec."
+
+  # The window, photographed. The studio is a Windows application and this is
+  # not Windows -- but Electron's renderer is Chromium, so loading the real
+  # page in headless Chromium exercises the real panels, the real editor and
+  # the real WebGL face. Everything but the four calls in preload.cjs, which
+  # are the ones that open a file dialog.
+  #
+  # It asserts nothing. It fails when the page throws, which is the class of
+  # fault that a unit test of the modules underneath cannot see: a mistyped
+  # element id, a landmark index that does not exist in the mesh, a module
+  # that will not import.
+  window:
+    name: The window opens and draws
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install
+        run: npm install --no-audit --no-fund --ignore-scripts
+
+      - name: Copy the two files the renderer serves itself
+        run: npm run vendor
+
+      # The runner image ships Chrome. The tool takes the path in $CHROME so
+      # it is the same tool here and on a workstation.
+      - name: Photograph it
+        run: |
+          set -euo pipefail
+          CHROME=$(command -v google-chrome || command -v chromium-browser || command -v chromium)
+          echo "using $CHROME"
+          CHROME="$CHROME" node tools/shoot.mjs /tmp/shots
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: the-window
+          path: /tmp/shots

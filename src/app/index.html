@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'">
+<title>Kyron Lens Studio</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<header class="bar">
+  <div class="bar-left">
+    <span class="mark" aria-hidden="true"></span>
+    <input id="lens-name" class="lens-name" value="Untitled" aria-label="Lens name" spellcheck="false">
+    <span class="id-chip"><span class="id-chip-label">id</span><input id="lens-id" value="untitled" aria-label="Lens id" spellcheck="false"></span>
+    <span id="dirty" class="dirty" hidden>unsaved</span>
+  </div>
+  <div class="bar-right">
+    <button id="undo" class="ghost" title="Undo (Ctrl+Z)" disabled>Undo</button>
+    <button id="redo" class="ghost" title="Redo (Ctrl+Shift+Z)" disabled>Redo</button>
+    <span class="bar-divider"></span>
+    <button id="open" class="ghost">Open</button>
+    <button id="save" class="ghost">Save</button>
+    <button id="publish" class="primary" disabled>Publish&#8230;</button>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- Objects: everything in the lens, in the order the app applies it. -->
+  <section class="panel objects" aria-label="Objects">
+    <h2 class="panel-title">Objects</h2>
+    <ul id="objects" class="tree"></ul>
+    <div class="panel-actions">
+      <button id="add-attachment" class="ghost small">+ Attachment</button>
+      <button id="add-fill" class="ghost small">+ Fill</button>
+      <button id="add-frost" class="ghost small">+ Frost</button>
+    </div>
+
+    <h2 class="panel-title">Resources</h2>
+    <ul id="resources" class="resources"></ul>
+    <div class="panel-actions">
+      <button id="import" class="ghost small">Import artwork&#8230;</button>
+      <button id="paint" class="ghost small">Paint&#8230;</button>
+    </div>
+  </section>
+
+  <!-- The face, and the same lens over a photograph. -->
+  <section class="stage" aria-label="Preview">
+    <div class="stage-tabs" role="tablist">
+      <button class="tab is-on" data-view="face" role="tab" aria-selected="true">3D face</button>
+      <button class="tab" data-view="photo" role="tab" aria-selected="false">Photo</button>
+      <button class="tab" data-view="json" role="tab" aria-selected="false">Lens JSON</button>
+    </div>
+
+    <div id="view-face" class="view is-on">
+      <div id="viewport" class="viewport"></div>
+      <div class="stage-hint">
+        <kbd>drag</kbd> turn &#183; <kbd>wheel</kbd> zoom &#183; drag an attachment to move it
+      </div>
+    </div>
+
+    <div id="view-photo" class="view">
+      <canvas id="photo" width="480" height="640"></canvas>
+      <div class="stage-hint">The colour matrix over a reference chart and a face
+        mesh render. Nothing here is a photograph of a person.</div>
+    </div>
+
+    <div id="view-json" class="view">
+      <pre id="json" class="json"></pre>
+    </div>
+  </section>
+
+  <!-- Inspector: whatever is selected, in units a person thinks in. -->
+  <section class="panel inspector" aria-label="Inspector">
+    <h2 class="panel-title" id="inspector-title">Lens</h2>
+    <div id="inspector" class="inspector-body"></div>
+  </section>
+</main>
+
+<footer class="logger" aria-label="Problems">
+  <div class="logger-head">
+    <span id="logger-status" class="status">&#8212;</span>
+    <button id="logger-toggle" class="ghost small">Hide</button>
+  </div>
+  <ul id="logger-list" class="logger-list"></ul>
+</footer>
+
+<dialog id="paint-dialog" class="paint-dialog">
+  <form method="dialog" class="paint-form">
+    <div class="paint-head">
+      <strong>Paint</strong>
+      <label>name <input id="paint-name" value="sticker.png" spellcheck="false"></label>
+      <label>colour <input id="paint-colour" type="color" value="#17d1b0"></label>
+      <label>size <input id="paint-size" type="range" min="1" max="80" value="14"></label>
+      <button type="button" id="paint-erase" class="ghost small">Erase</button>
+      <button type="button" id="paint-clear" class="ghost small">Clear</button>
+    </div>
+    <canvas id="paint-canvas" width="512" height="512"></canvas>
+    <div class="paint-foot">
+      <span class="muted">Transparent where nothing is painted. That transparency is what makes it a sticker.</span>
+      <span class="spacer"></span>
+      <button value="cancel" class="ghost">Cancel</button>
+      <button type="button" id="paint-keep" class="primary">Keep</button>
+    </div>
+  </form>
+</dialog>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

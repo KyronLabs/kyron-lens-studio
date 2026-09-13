@@ -7,9 +7,13 @@ A Windows desktop tool for authoring lenses for
 something, position it on a 3D face, see it the way the camera will, and open
 a pull request against the catalogue without touching JSON.
 
-> **State: the foundation, not the app.** The format contract and the geometry
-> are built and tested; the editor is not. [What is here and what is
-> next](#what-is-here) is honest about the line.
+> **State: the editor runs; the Windows build has never been run.** The
+> panels, the 3D face, the colour engine and the publish plan all work and are
+> photographed on every push — in headless Chromium, because Electron's
+> renderer *is* Chromium and the machine this was built on is not Windows.
+> What has never been executed anywhere is `electron .` and
+> `electron-builder --win`. [What is here and what is
+> next](#what-is-here) keeps that line visible.
 
 ---
 
@@ -67,21 +71,80 @@ Refresh the vectors with `npm run vectors:refresh`.
 
 ## What is here
 
+![The window](docs/window.png)
+
+Four regions, which is the shape every editor of this kind has settled on and
+Lens Studio included: what is in the thing on the left, the thing itself in the
+middle, the properties of whatever is selected on the right, and what is wrong
+at the bottom.
+
+| | |
+|:--|:--|
+| **Objects** | The lens's own contents — colour, each attachment, each effect — in the order the app applies them. |
+| **Resources** | Artwork, imported or painted. Drop a PNG anywhere in the window. |
+| **The face** | MediaPipe's canonical mesh, the same one the app's tracker fits to a real face. Every anchor is marked. Drag an attachment to move it; the drag comes back as pupil-gaps. |
+| **Photo** | The colour matrix over a reference chart — skin through shadow, a grey ramp — which says more about a matrix than a single face does. |
+| **Lens JSON** | The object that would be written into the catalogue. Every preview is drawn from this rather than from the editor's state, so what is on screen is the file. |
+| **Inspector** | The selected thing, in units somebody can picture: `1.1 gaps · about 69mm`. |
+| **Logger** | Everything between here and publishable, in the app's own words, live. |
+
 ```
 src/format/lens.js     the rules — what the app will and will not draw
+src/format/matrix.js   sliders → the twenty numbers, and back to pixels
 src/format/face.js     pupil-gap geometry, both directions
-tools/derive-anchors   where each anchor is, measured off the canonical mesh
-assets/face/           MediaPipe's canonical face model, vendored
-test/vectors.test.js   the 106 shared cases from kyron-lenses
-test/face.test.js      the geometry, including the property it all rests on
-test/anchors.test.js   re-derives the anchor table and fails if it has drifted
+src/format/project.js  what is edited → what is published
+src/app/state.js       the editor: selection, undo, every change
+src/app/units.js       gaps in millimetres, and every control's ends
+src/app/viewport.js    the 3D face
+src/app/paint.js       the canvas
+src/main/              Electron: a window, and four calls that touch the disk
 ```
 
 ```bash
-npm test        # 121 tests
-npm run vectors # just the shared format contract
+npm test        # 194 tests, no install needed
+npm start       # the app, on Windows
+npm run shots   # photograph the window in headless Chromium
+npm run dist    # the Windows installer
 npm run anchors # print the anchor table, derived from the mesh
 ```
+
+### The colour panel is nine sliders, not twenty numbers
+
+Twenty fields is not an editor. `matrix.js` is the translation: exposure in
+stops, contrast about mid grey, saturation onto Rec. 709 luminance, temperature,
+tint, hue, sepia, invert, and a wash — each one a matrix, composed by
+multiplication, checked on pixels rather than on coefficients.
+
+Three things in there are worth knowing before changing any of it:
+
+**Order matters, for 31 of the 45 pairs.** Exposure then contrast is not
+contrast then exposure. `ORDER` fixes it so that two people describing the same
+lens get the same twenty numbers, rather than the answer depending on which
+slider was touched last.
+
+**The other 14 pairs genuinely commute**, which is not obvious. Saturation
+leaves neutral colours alone and contrast is a scalar plus a neutral offset, so
+those two agree either way — and so do contrast and invert. The test asserting
+non-commutativity was first written on contrast and saturation, and failed,
+correctly.
+
+**It only goes one way.** A matrix cannot be turned back into sliders: many
+settings reach the same twenty numbers. So the project file keeps the
+adjustments *alongside* the matrix, and a matrix somebody typed wins until a
+slider is touched — at which point the panel says so and takes over. Offering
+sliders that claim to describe a hand-written matrix would move it the moment
+anybody touched one.
+
+Every slider's ends are checked against the format in a test: a control that
+can reach a value the app refuses is a control that builds an unpublishable
+lens and says nothing about which one did it.
+
+### Publishing stops one step short
+
+`publishPlan` names the file to write and the catalogue entry to add, the main
+process writes them into a checkout of kyron-lenses, and then it stops and says
+so. Committing is somebody putting their name on a change that reaches every
+phone running Kyron, and the last step is theirs.
 
 ### The anchors are measured, not written down
 
@@ -125,29 +188,40 @@ against a 25° head tilt comes out upright*.
 
 ## What is next
 
-In the order it should be built:
+Honestly, in the order it should be done:
 
-1. **The canvas.** Paint or import artwork with transparency — the sticker.
-   Exports the PNG the catalogue will serve.
-2. **The 3D face.** The canonical MediaPipe face mesh, which is the same mesh
-   `mediapipe_face_mesh` gives the app, so a preview lines up with what the
-   camera will actually do rather than with somebody's idea of where a nose is.
-   Drag the artwork onto it; `face.js` turns that into the numbers.
-3. **The colour matrix editor.** Twenty numbers is unusable as twenty fields —
-   it wants the controls people think in (warmth, contrast, saturation, tint)
-   composing down to the matrix, with the raw numbers visible for anyone who
-   wants them.
-4. **The effects editor.** Region, feather, keepShading, frost. Previewed on a
-   real photograph, because a fill only reads correctly over real skin.
-5. **Publish.** Write `assets/<id>.png` and the `lenses.json` entry, and open a
-   pull request on kyron-lenses.
+1. **Run it on Windows.** `npm start` and `npm run dist` have never been
+   executed. Everything else here is checked; those two are not, and nothing
+   in this README should be read as saying otherwise.
+2. **A real photograph behind the effects.** A fill takes skin sampled from a
+   face and paints a region of that same face with it; a chart cannot show
+   that. This needs a photograph somebody consented to being shipped in a
+   tool, which is a decision rather than a task.
+3. **Drag to resize and rotate**, not just to move. The handles are the
+   obvious next thing on the face, and `attachmentFor` already does the
+   arithmetic.
+4. **Open the pull request**, rather than writing into a checkout and stopping.
+   Wants a token, which wants a settings screen, which wants somewhere to keep
+   a secret on Windows.
+5. **Templates.** Lens Studio opens on a gallery of them, and it is the right
+   idea: most lenses are a variation on a handful of shapes.
 
 ### The stack, and why
 
 **Electron + Three.js.** Three.js is the only part of this that is not a
-choice: a 3D face mockup with artwork positioned on it in perspective is what
-it is for. Canvas 2D handles the painting, Node handles git and the pull
-request, and `electron-builder` produces the Windows installer.
+choice: a face mesh you can turn, with artwork positioned against it, is what
+it is for. Canvas 2D handles the painting, Node handles the files, and
+`electron-builder` produces the Windows installer.
+
+The camera over that mesh is **orthographic**, and that is not a style
+decision. An attachment is a flat sprite in the pupil-gap plane: offset Y of
+−1.35 means "1.35 gaps above the pupil line" and nothing else. Under
+perspective, a sprite drawn in front of the face is magnified and pushed away
+from the centre of the frame, so a sticker set to sit on the forehead appears
+above it — by an amount depending on how far forward it happens to be drawn.
+Every number in the inspector would be quietly contradicted by the picture
+next to it. With no perspective there is no parallax, and turning the head
+still shows a sprite for the flat thing it is.
 
 Flutter was the obvious alternative — it is what the Kyron app is written in
 and what the team already knows — and was rejected on one point: Flutter has

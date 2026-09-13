@@ -17,18 +17,11 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-/** The indices kyron-lenses/tools/face.py names, each checked there. */
-export const LANDMARKS = {
-  leftEyeOuter: 33,
-  leftEyeInner: 133,
-  rightEyeOuter: 263,
-  rightEyeInner: 362,
-  noseTip: 1,
-  chin: 152,
-  forehead: 10,
-  lipTop: 13,
-  lipBottom: 14,
-};
+// One definition of where the landmarks are, shared with the studio's 3D
+// viewport. Two would drift, and the drift would be invisible until a lens
+// was on somebody's face.
+export { LANDMARKS, pupilsFrom } from '../src/format/face.js';
+import { CANONICAL_VERTICES, LANDMARKS, pupilsFrom } from '../src/format/face.js';
 
 const MODEL = new URL('../assets/face/canonical_face_model.obj', import.meta.url);
 
@@ -40,8 +33,10 @@ export function readVertices(path = fileURLToPath(MODEL)) {
     const [x, y, z] = line.split(/\s+/).slice(1, 4).map(Number);
     vertices.push({ x, y, z });
   }
-  if (vertices.length !== 468) {
-    throw new Error(`expected 468 vertices, read ${vertices.length}`);
+  if (vertices.length !== CANONICAL_VERTICES) {
+    throw new Error(
+      `expected ${CANONICAL_VERTICES} vertices, read ${vertices.length}`,
+    );
   }
   return vertices;
 }
@@ -54,10 +49,7 @@ const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) 
  */
 export function deriveAnchors(vertices = readVertices()) {
   const v = (i) => vertices[i];
-  const left = mid(v(LANDMARKS.leftEyeOuter), v(LANDMARKS.leftEyeInner));
-  const right = mid(v(LANDMARKS.rightEyeOuter), v(LANDMARKS.rightEyeInner));
-
-  const gap = Math.hypot(right.x - left.x, right.y - left.y);
+  const { left, right, gap } = pupilsFrom(vertices);
   const origin = mid(left, right);
   // The model is y-up; the format and the screen are y-down.
   const gaps = (p) => ({
