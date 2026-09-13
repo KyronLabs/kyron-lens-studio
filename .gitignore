@@ -4,3 +4,8 @@ out/
 *.log
 .DS_Store
 Thumbs.db
+
+# Build output: see tools/vendor.mjs. The originals are the three dependency
+# and assets/face/.
+src/app/vendor/
+src/app/face/

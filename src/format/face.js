@@ -191,3 +191,68 @@ function round(value, places) {
   // rather than written as `-0`.
   return Math.round(value * scale) / scale + 0;
 }
+
+/**
+ * The landmark indices on MediaPipe's canonical face mesh.
+ *
+ * The ones `kyron-lenses/tools/face.py` names, each checked there.
+ *
+ * **The canonical model has 468 vertices and no irises.** The tracker in the
+ * app runs the 478-point model, where 468 and 473 are the pupils -- but the
+ * mesh shipped in `assets/face/` is the 468-point one, and reading 468 out of
+ * it gives `undefined`, a gap of NaN, and every attachment placed at NaN with
+ * nothing drawn and no error. That happened. So the pupils are derived from
+ * the eye corners here, which exist in both.
+ */
+export const LANDMARKS = Object.freeze({
+  leftEyeOuter: 33,
+  leftEyeInner: 133,
+  rightEyeOuter: 263,
+  rightEyeInner: 362,
+  noseTip: 1,
+  chin: 152,
+  forehead: 10,
+  lipTop: 13,
+  lipBottom: 14,
+});
+
+/** How many vertices the canonical model has. */
+export const CANONICAL_VERTICES = 468;
+
+const midpoint = (a, b) => ({
+  x: (a.x + b.x) / 2,
+  y: (a.y + b.y) / 2,
+  z: (a.z + b.z) / 2,
+});
+
+/**
+ * The two pupils, their midpoint and the gap between them, from a list of
+ * mesh vertices.
+ *
+ * One definition, used by `tools/derive-anchors.mjs` to compute
+ * [ANCHOR_OFFSETS] and by the studio's 3D viewport to place things against
+ * them. Two derivations of the same measurement is how the table and the
+ * preview come to disagree by an amount nobody can see until it is on a face.
+ */
+export function pupilsFrom(vertices) {
+  if (!Array.isArray(vertices) || vertices.length < CANONICAL_VERTICES) {
+    throw new RangeError(
+      `the canonical mesh has ${CANONICAL_VERTICES} vertices, got ` +
+        `${Array.isArray(vertices) ? vertices.length : typeof vertices}`,
+    );
+  }
+  const left = midpoint(
+    vertices[LANDMARKS.leftEyeOuter],
+    vertices[LANDMARKS.leftEyeInner],
+  );
+  const right = midpoint(
+    vertices[LANDMARKS.rightEyeOuter],
+    vertices[LANDMARKS.rightEyeInner],
+  );
+  return {
+    left,
+    right,
+    gap: Math.hypot(right.x - left.x, right.y - left.y),
+    origin: midpoint(left, right),
+  };
+}

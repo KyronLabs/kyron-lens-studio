@@ -5,10 +5,33 @@
   "type": "module",
   "description": "Draw a lens, place it on a face, publish it.",
   "license": "MIT",
+  "main": "src/main/main.js",
   "scripts": {
     "test": "node --test \"test/*.test.js\"",
     "vectors": "node --test test/vectors.test.js",
     "vectors:refresh": "curl -fsSL https://raw.githubusercontent.com/KyronLabs/kyron-lenses/main/format-vectors.json -o test/format-vectors.json && npm run vectors",
-    "anchors": "node tools/derive-anchors.mjs"
+    "anchors": "node tools/derive-anchors.mjs",
+    "vendor": "node tools/vendor.mjs",
+    "start": "npm run vendor && electron .",
+    "shots": "npm run vendor && node tools/shoot.mjs",
+    "dist": "npm run vendor && electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^32.2.0",
+    "electron-builder": "^25.1.8",
+    "three": "0.169.0"
+  },
+  "build": {
+    "appId": "so.kyron.lensstudio",
+    "productName": "Kyron Lens Studio",
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
   }
 }
