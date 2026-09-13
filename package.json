@@ -8,6 +8,7 @@
   "scripts": {
     "test": "node --test \"test/*.test.js\"",
     "vectors": "node --test test/vectors.test.js",
-    "vectors:refresh": "curl -fsSL https://raw.githubusercontent.com/KyronLabs/kyron-lenses/main/format-vectors.json -o test/format-vectors.json && npm run vectors"
+    "vectors:refresh": "curl -fsSL https://raw.githubusercontent.com/KyronLabs/kyron-lenses/main/format-vectors.json -o test/format-vectors.json && npm run vectors",
+    "anchors": "node tools/derive-anchors.mjs"
   }
 }
