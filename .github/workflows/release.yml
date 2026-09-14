@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+# A tag is pushed once, but a re-run or a retag should not race a half-finished
+# publish. Never cancelled: a release part-way through uploading is worse than
+# one that finishes and is then superseded.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Build and publish the Windows installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The tag is the release, so the version it carries and the version the
+      # installer is built from have to be the same one. They can differ: a
+      # tag can be pushed at any commit, including one whose package.json was
+      # never bumped, and the installer would then be published under a
+      # version it does not contain.
+      - name: The tag matches package.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          pkg=$(node -p "require('./package.json').version")
+          if [ "$tag" != "$pkg" ]; then
+            echo "Tag v$tag does not match package.json $pkg."
+            echo "Use the Create Versioned Release workflow, which writes both."
+            exit 1
+          fi
+          echo "version=$pkg" >> "$GITHUB_ENV"
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Build the installer
+        run: npm run dist
+
+      # The same guard CI runs. A release is the one build nobody looks at
+      # before somebody downloads it.
+      - name: It is a real application
+        run: node tools/check-windows-build.mjs dist
+
+      # Published beside the installer so a download can be checked against
+      # something this workflow printed, rather than against itself.
+      - name: Checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          installer=$(ls *.exe)
+          sha256sum "$installer" > "$installer.sha256"
+          cat "$installer.sha256"
+          echo "installer=$installer" >> "$GITHUB_ENV"
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Kyron Lens Studio ${{ env.version }}
+          body: |
+            Draw a lens, place it on a face, publish it.
+
+            ### Install
+
+            Download `${{ env.installer }}` and run it. It installs for the
+            current user, so there is no administrator prompt, and it asks
+            where to put itself.
+
+            Windows will warn that the publisher is unknown: the build is not
+            code-signed. More info → Run anyway. `*.sha256` beside the
+            installer is what this build produced, if you would rather check.
+
+            ### What is in it
+
+            Built on a Windows runner and checked before publishing: the
+            installer is a real NSIS executable, the application inside it is
+            stamped Kyron Lens Studio rather than Electron, and its payload
+            carries every file the editor loads — including the two the
+            renderer serves itself, which are build output and are the ones
+            that go missing.
+          files: |
+            dist/*.exe
+            dist/*.exe.sha256
+          fail_on_unmatched_files: true

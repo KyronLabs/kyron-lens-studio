@@ -15,6 +15,7 @@ a pull request against the catalogue without touching JSON.
 > installer it produces is checked before it is uploaded: it has to be an
 > NSIS executable of a plausible size, carrying an application named Kyron
 > Lens Studio, whose packaged payload holds every file the renderer loads.
+> Tagging a version publishes that same installer as a GitHub release.
 > What still has not been executed anywhere is `electron .` on a real
 > desktop — the window has never been opened by a person. [What is here and
 > what is next](#what-is-here) keeps that line visible.
@@ -111,6 +112,18 @@ npm run shots   # photograph the window in headless Chromium
 npm run dist    # the Windows installer
 npm run anchors # print the anchor table, derived from the mesh
 ```
+
+### Releasing
+
+Run **Create Versioned Release** from the Actions tab and pick patch, minor or
+major. It bumps `package.json`, commits, and pushes an annotated `vX.Y.Z` tag;
+the tag starts **Release**, which builds the installer on a Windows runner,
+runs the same guard CI runs, and publishes it with its SHA-256.
+
+The release workflow refuses a tag whose version does not match
+`package.json` — a tag can be pushed at any commit, including one that was
+never bumped, and the installer would otherwise be published under a version
+it does not contain.
 
 ### The colour panel is nine sliders, not twenty numbers
 
