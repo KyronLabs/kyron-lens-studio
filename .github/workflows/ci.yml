@@ -50,18 +50,23 @@ jobs:
           fi
           echo "The copy matches the catalogue's own spec."
 
-  # The window, photographed. The studio is a Windows application and this is
-  # not Windows -- but Electron's renderer is Chromium, so loading the real
-  # page in headless Chromium exercises the real panels, the real editor and
-  # the real WebGL face. Everything but the four calls in preload.cjs, which
-  # are the ones that open a file dialog.
+  # The application, used.
   #
-  # It asserts nothing. It fails when the page throws, which is the class of
-  # fault that a unit test of the modules underneath cannot see: a mistyped
-  # element id, a landmark index that does not exist in the mesh, a module
-  # that will not import.
-  window:
-    name: The window opens and draws
+  # `node --test` covers the modules underneath, which is the half that can be
+  # checked without a window. It saw none of the three faults that reached
+  # somebody running the installed studio -- a text field that took one
+  # character per click, handles that never appeared, a rotate handle off the
+  # top of the canvas -- because each is a sentence about what happens when a
+  # person uses the window, and the only way to check one is to use the window.
+  #
+  # This replaces a job that loaded the renderer in headless Chromium and took
+  # the same pictures. That was not Electron -- no preload, no file:// origin,
+  # and command-line flags a packaged application does not have -- and being a
+  # second thing driving the same interface by selector, it broke the moment
+  # the interface changed underneath it while this one was kept up to date.
+  # One driver, and it is the faithful one.
+  app:
+    name: The application works when it is used
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,30 +75,23 @@ jobs:
         with:
           node-version: '22'
 
+      # Not --ignore-scripts: this one needs the Electron binary, which is
+      # what electron's own postinstall fetches.
       - name: Install
-        run: npm install --no-audit --no-fund --ignore-scripts
+        run: npm ci --no-audit --no-fund
 
-      - name: Copy the two files the renderer serves itself
-        run: npm run vendor
+      # A window needs somewhere to open. The runner image ships Xvfb.
+      - name: Use it
+        run: xvfb-run -a --server-args="-screen 0 1440x900x24" npm run test:app
 
-      # Everything, now that three.js is where the renderer keeps it. This is
-      # where test/browser/ runs.
-      - name: Test
-        run: npm test
-
-      # The runner image ships Chrome. The tool takes the path in $CHROME so
-      # it is the same tool here and on a workstation.
-      - name: Photograph it
-        run: |
-          set -euo pipefail
-          CHROME=$(command -v google-chrome || command -v chromium-browser || command -v chromium)
-          echo "using $CHROME"
-          CHROME="$CHROME" node tools/shoot.mjs /tmp/shots
-
+      # The window at every stage: opened, coloured, over the photograph, as
+      # the JSON that gets published, with artwork on the face, frosted, and
+      # the paint dialog.
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: the-window
-          path: /tmp/shots
+          path: /tmp/kyron-studio-exercise
 
   # The thing people actually download.
   #

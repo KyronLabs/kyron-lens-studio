@@ -13,13 +13,14 @@
     "anchors": "node tools/derive-anchors.mjs",
     "vendor": "node tools/vendor.mjs",
     "start": "npm run vendor && electron .",
-    "shots": "npm run vendor && node tools/shoot.mjs",
     "dist": "npm run vendor && electron-builder --win --publish never",
-    "test:format": "node --test \"test/*.test.js\""
+    "test:format": "node --test \"test/*.test.js\"",
+    "test:app": "npm run vendor && node tools/exercise.mjs"
   },
   "devDependencies": {
     "electron": "32.3.3",
     "electron-builder": "25.1.8",
+    "kyron-design-system": "github:KyronLabs/design-system",
     "three": "0.169.0"
   },
   "build": {

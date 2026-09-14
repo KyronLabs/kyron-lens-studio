@@ -1,11 +1,12 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy"
       content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'">
 <title>Kyron Lens Studio</title>
-<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="vendor/tokens.css">
+    <link rel="stylesheet" href="app.css">
 </head>
 <body>
 
@@ -20,9 +21,10 @@
     <button id="undo" class="ghost" title="Undo (Ctrl+Z)" disabled>Undo</button>
     <button id="redo" class="ghost" title="Redo (Ctrl+Shift+Z)" disabled>Redo</button>
     <span class="bar-divider"></span>
-    <button id="open" class="ghost">Open</button>
-    <button id="save" class="ghost">Save</button>
-    <button id="publish" class="primary" disabled>Publish&#8230;</button>
+    <button id="open" class="ghost" title="Open a lens project (Ctrl+O)">Open</button>
+    <button id="save" class="ghost" title="Save this project to disk (Ctrl+S)">Save</button>
+    <button id="publish" class="primary" disabled
+            title="Opens a pull request against the Kyron lens catalogue. Nothing is published until somebody merges it.">Publish&#8230;</button>
   </div>
 </header>
 
@@ -33,9 +35,12 @@
     <h2 class="panel-title">Objects</h2>
     <ul id="objects" class="tree"></ul>
     <div class="panel-actions">
-      <button id="add-attachment" class="ghost small">+ Attachment</button>
-      <button id="add-fill" class="ghost small">+ Fill</button>
-      <button id="add-frost" class="ghost small">+ Frost</button>
+      <button id="add-attachment" class="ghost small"
+              title="A picture pinned to a place on the face — a hat, a pair of glasses, a star">+ Attachment</button>
+      <button id="add-fill" class="ghost small"
+              title="Covers part of the face with skin taken from that same face">+ Fill</button>
+      <button id="add-frost" class="ghost small"
+              title="Blurs and lifts the face, optionally leaving one part sharp">+ Frost</button>
     </div>
 
     <h2 class="panel-title">Resources</h2>

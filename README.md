@@ -106,11 +106,12 @@ src/main/              Electron: a window, and four calls that touch the disk
 ```
 
 ```bash
-npm test        # 194 tests, no install needed
-npm start       # the app, on Windows
-npm run shots   # photograph the window in headless Chromium
-npm run dist    # the Windows installer
-npm run anchors # print the anchor table, derived from the mesh
+npm run test:format  # the format rules. No install, no browser, seconds
+npm test             # those, and the ones that need three.js
+npm run test:app     # opens the real window, uses it, and photographs it
+npm start            # the app
+npm run dist         # the Windows installer
+npm run anchors      # print the anchor table, derived from the mesh
 ```
 
 ### Releasing
