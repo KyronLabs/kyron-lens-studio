@@ -1,9 +1,34 @@
 name: Release
 
 on:
+  # A human pushing a tag.
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
+
+  # Create Versioned Release, straight after it tags.
+  #
+  # It cannot rely on the trigger above. A push made with the default
+  # GITHUB_TOKEN does not start another workflow -- GitHub's own rule, to stop
+  # workflows triggering each other forever -- so the tag it pushes lands
+  # silently and nothing builds. That is exactly what happened on the first
+  # run: v0.1.1 was tagged, main carried the bump, and no release appeared.
+  workflow_call:
+    inputs:
+      tag:
+        description: The tag to build and publish, with its leading v.
+        required: true
+        type: string
+
+  # And by hand, for a tag that exists but never got its release -- a run that
+  # failed after tagging, or one that never started. Re-releasing must not
+  # need a version bump nobody wanted.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: An existing tag to build and publish, with its leading v.
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -12,7 +37,7 @@ permissions:
 # publish. Never cancelled: a release part-way through uploading is worse than
 # one that finishes and is then superseded.
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -20,7 +45,12 @@ jobs:
     name: Build and publish the Windows installer
     runs-on: windows-latest
     steps:
+      # The tag, whichever way this was started. On a tag push `inputs` is
+      # empty and `github.ref_name` is the tag; on the other two the input is
+      # the tag and `github.ref_name` is whatever branch called.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
 
       - uses: actions/setup-node@v4
         with:
@@ -33,9 +63,11 @@ jobs:
       # version it does not contain.
       - name: The tag matches package.json
         shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
-          tag="${GITHUB_REF_NAME#v}"
+          tag="${RELEASE_TAG#v}"
           pkg=$(node -p "require('./package.json').version")
           if [ "$tag" != "$pkg" ]; then
             echo "Tag v$tag does not match package.json $pkg."
@@ -70,6 +102,10 @@ jobs:
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
+          # Stated rather than taken from the ref: on the two input paths the
+          # ref is a branch, and a release published against a branch is not a
+          # release of anything.
+          tag_name: ${{ inputs.tag || github.ref_name }}
           name: Kyron Lens Studio ${{ env.version }}
           body: |
             Draw a lens, place it on a face, publish it.

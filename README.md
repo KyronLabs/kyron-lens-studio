@@ -116,9 +116,18 @@ npm run anchors # print the anchor table, derived from the mesh
 ### Releasing
 
 Run **Create Versioned Release** from the Actions tab and pick patch, minor or
-major. It bumps `package.json`, commits, and pushes an annotated `vX.Y.Z` tag;
-the tag starts **Release**, which builds the installer on a Windows runner,
-runs the same guard CI runs, and publishes it with its SHA-256.
+major. It bumps `package.json`, commits, pushes an annotated `vX.Y.Z` tag, and
+then *calls* **Release**, which builds the installer on a Windows runner, runs
+the same guard CI runs, and publishes it with its SHA-256.
+
+It calls it rather than leaving the tag to start it. A push made with the
+default `GITHUB_TOKEN` does not start another workflow — GitHub's own rule,
+to stop workflows triggering each other forever — so a tag pushed from inside
+Actions lands silently and nothing builds. The first run of this proved it:
+`v0.1.1` was tagged, `main` carried the bump, and no release appeared.
+
+**Release** also takes a tag by hand, for one that exists and never got its
+release. Re-releasing does not need a version bump nobody wanted.
 
 The release workflow refuses a tag whose version does not match
 `package.json` — a tag can be pushed at any commit, including one that was

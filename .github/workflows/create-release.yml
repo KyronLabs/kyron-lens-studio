@@ -26,6 +26,8 @@ jobs:
   version-and-tag:
     name: Bump the version and tag it
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,4 +65,17 @@ jobs:
           git commit -m "chore(release): v${VERSION}"
           git tag -a "v${VERSION}" -m "Kyron Lens Studio v${VERSION}"
           git push origin main "v${VERSION}"
-          echo "Tagged v${VERSION}. release.yml takes it from here."
+          echo "Tagged v${VERSION}."
+
+  # Called, not left to the tag's own trigger. A push made with the default
+  # GITHUB_TOKEN does not start another workflow, so the tag above lands
+  # silently -- the first run of this workflow tagged v0.1.1 and published
+  # nothing.
+  release:
+    name: Build and publish it
+    needs: version-and-tag
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: v${{ needs.version-and-tag.outputs.version }}
