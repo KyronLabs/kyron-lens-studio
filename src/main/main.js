@@ -1,6 +1,6 @@
 // src/main/main.js
 //
-// The Electron main process: a window, a menu, and the four things the
+// The Electron main process: a window and the four things the
 // renderer cannot do for itself -- open a file, save a file, read artwork off
 // the disk, and open a pull request against the catalogue.
 //
@@ -39,6 +39,21 @@ function create() {
   });
 
   window.loadFile(join(appDir, 'index.html'));
+
+  // Two keys the menu used to carry that nothing else can reach. Without a
+  // menu there is no other way into the developer tools, and the first thing
+  // anybody is asked when a window comes up wrong is what the console says.
+  window.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    if (input.key === 'F12') {
+      window?.webContents.toggleDevTools();
+      event.preventDefault();
+    } else if (input.key === 'F11') {
+      window?.setFullScreen(!window.isFullScreen());
+      event.preventDefault();
+    }
+  });
+
   window.on('closed', () => { window = null; });
 }
 
@@ -51,7 +66,13 @@ app.on('web-contents-created', (_event, contents) => {
 });
 
 app.whenReady().then(() => {
-  Menu.setApplicationMenu(menu());
+  // No menu bar. File held Open and Save, Edit held Undo and Redo, and all
+  // four are buttons in the window's own top bar a few pixels below where the
+  // menu was -- so it was a second copy of the same four things, in a strip
+  // that on Windows is the first thing above the interface and reads as part
+  // of the operating system rather than part of this. The keyboard shortcuts
+  // it carried are handled by the window itself now, beside the buttons.
+  Menu.setApplicationMenu(null);
   create();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) create();
@@ -61,28 +82,6 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
-
-function menu() {
-  return Menu.buildFromTemplate([
-    {
-      label: 'File',
-      submenu: [
-        { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: () => window?.webContents.send('menu', 'open') },
-        { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => window?.webContents.send('menu', 'save') },
-        { type: 'separator' },
-        { role: 'quit' },
-      ],
-    },
-    {
-      label: 'Edit',
-      submenu: [
-        { label: 'Undo', accelerator: 'CmdOrCtrl+Z', click: () => window?.webContents.send('menu', 'undo') },
-        { label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', click: () => window?.webContents.send('menu', 'redo') },
-      ],
-    },
-    { label: 'View', submenu: [{ role: 'reload' }, { role: 'toggleDevTools' }, { role: 'togglefullscreen' }] },
-  ]);
-}
 
 // ---------------------------------------------------------------------------
 // What the renderer may ask for

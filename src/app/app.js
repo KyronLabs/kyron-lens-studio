@@ -166,9 +166,80 @@ function drawResources() {
 // The inspector
 // ---------------------------------------------------------------------------
 
+/** What the controls on screen were built for. See [drawInspector]. */
+let inspectorShape = null;
+
+/**
+ * The inspector, rebuilt only when the set of controls actually changes.
+ *
+ * It used to call `replaceChildren` on every draw -- and every keystroke is a
+ * draw, because typing fires the field's own `input` listener, which edits
+ * the project, which redraws. So typing one character destroyed the field it
+ * had just been typed into, and the caret went with it: the next character
+ * needed another click. A name cost as many clicks as it had letters.
+ *
+ * The controls are now rebuilt only when the selection changes, or when
+ * something changes which controls there should be. Otherwise the fresh build
+ * is used as a source of values and thrown away, and the controls on screen
+ * keep their identity.
+ *
+ * Whatever has focus is not written to at all. It already holds the newest
+ * value -- it is what produced this draw -- and writing to it would move the
+ * caret to the end, which is the same bug in a quieter form.
+ */
 function drawInspector() {
   const body = $('inspector');
-  body.replaceChildren();
+  const fresh = document.createElement('div');
+  const shape = buildInspector(fresh);
+  // Null means the selection pointed at something that is gone, and building
+  // it redirected; that redraw is already on its way.
+  if (shape === null) return;
+
+  if (shape === inspectorShape) {
+    syncControls(body, fresh);
+    return;
+  }
+  inspectorShape = shape;
+  body.replaceChildren(...fresh.childNodes);
+}
+
+/** Copies values into the live controls, leaving the one in use alone. */
+function syncControls(live, fresh) {
+  const from = fresh.querySelectorAll('input, select');
+  const into = live.querySelectorAll('input, select');
+
+  // A shape key that missed something. Rebuilding is worse than syncing but
+  // far better than writing each value into whichever control happens to sit
+  // at that index.
+  if (from.length !== into.length) {
+    live.replaceChildren(...fresh.childNodes);
+    return;
+  }
+
+  into.forEach((control, at) => {
+    if (control === document.activeElement) return;
+    if (control.value !== from[at].value) control.value = from[at].value;
+  });
+
+  // The readout beside a slider and the unit next to it are text rather than
+  // a control value, so they are copied separately.
+  const labelsFrom = fresh.querySelectorAll('.value, .unit');
+  const labelsInto = live.querySelectorAll('.value, .unit');
+  if (labelsFrom.length === labelsInto.length) {
+    labelsInto.forEach((node, at) => {
+      node.textContent = labelsFrom[at].textContent;
+    });
+  }
+}
+
+/**
+ * Fills [body] with the controls for the current selection.
+ *
+ * Returns a key describing which controls those are: two builds with the same
+ * key have the same controls in the same order, so one can be synced into the
+ * other. Null when the selection pointed at something that no longer exists.
+ */
+function buildInspector(body) {
   const selection = editor.selection;
 
   if (selection.kind === 'lens') {
@@ -179,7 +250,7 @@ function drawInspector() {
       note('Lowercase letters, digits, - and _. This is the filename the catalogue keys on and it cannot change once published.'),
       text('Author', editor.project.author, (value) => editor.setField('author', value)),
     );
-    return;
+    return 'lens';
   }
 
   if (selection.kind === 'colour') {
@@ -205,12 +276,16 @@ function drawInspector() {
     const reset = element('button', { class: 'ghost small', text: 'Reset colour' });
     reset.addEventListener('click', () => editor.resetColour());
     body.append(reset, element('p', { class: 'section', text: 'Matrix' }), matrixGrid());
-    return;
+    // The typed note appears and disappears, which changes the shape.
+    return `colour:${editor.colourIsTyped}`;
   }
 
   if (selection.kind === 'attachment') {
     const attachment = editor.project.attachments[selection.index];
-    if (!attachment) return editor.select(LENS);
+    if (!attachment) {
+      editor.select(LENS);
+      return null;
+    }
     $('inspector-title').textContent = `Attachment ${selection.index + 1}`;
 
     const set = (changes) => editor.setAttachment(selection.index, changes);
@@ -251,12 +326,18 @@ function drawInspector() {
       }),
       remover('Remove attachment', () => editor.removeAttachment(selection.index)),
     );
-    return;
+    // The index, because the listeners close over it, and the resources,
+    // because they are the Artwork select's options.
+    const names = editor.project.resources.map((it) => it.name).join('|');
+    return `attachment:${selection.index}:${names}`;
   }
 
   if (selection.kind === 'effect') {
     const effect = editor.project.effects[selection.index];
-    if (!effect) return editor.select(LENS);
+    if (!effect) {
+      editor.select(LENS);
+      return null;
+    }
     $('inspector-title').textContent = effect.kind === 'fill' ? 'Fill' : 'Frost';
     const set = (changes) => editor.setEffect(selection.index, changes);
 
@@ -288,7 +369,10 @@ function drawInspector() {
       );
     }
     body.append(remover('Remove effect', () => editor.removeEffect(selection.index)));
+    return `effect:${selection.index}:${effect.kind}`;
   }
+
+  return 'none';
 }
 
 function matrixGrid() {
@@ -299,7 +383,11 @@ function matrixGrid() {
     field.value = show(value, 4);
     if (index % 5 === 4) field.className = 'offset';
     field.addEventListener('change', () => {
-      const next = [...matrix];
+      // Read at the moment of the edit rather than from the snapshot this
+      // grid was built with. The controls now outlive the build that made
+      // them -- the inspector syncs values into them instead of replacing
+      // them -- so a closed-over copy would be one edit behind.
+      const next = [...(editor.matrix ?? fromAdjustments({}))];
       next[index] = Number(field.value);
       if (Number.isFinite(next[index])) editor.setMatrix(next);
       else draw();
@@ -572,6 +660,10 @@ function wire() {
     } else if (key === 's') {
       event.preventDefault();
       saveProject();
+    } else if (key === 'o') {
+      // Was only ever on the menu, which has gone.
+      event.preventDefault();
+      openProject();
     }
   });
 
@@ -624,12 +716,7 @@ function wireFiles() {
     forgetArtwork();
   });
 
-  $('open').addEventListener('click', async () => {
-    if (!studio) return;
-    const opened = await studio.openProject();
-    if (!opened) return;
-    location.reload();
-  });
+  $('open').addEventListener('click', openProject);
 
   $('save').addEventListener('click', saveProject);
 
@@ -665,6 +752,14 @@ function wireFiles() {
   });
 }
 
+/** Opens a project file. The button and Ctrl+O both come here. */
+async function openProject() {
+  if (!studio) return;
+  const opened = await studio.openProject();
+  if (!opened) return;
+  location.reload();
+}
+
 async function saveProject() {
   if (!studio) return;
   await studio.saveProject(editor.toFile());
@@ -678,7 +773,45 @@ async function saveProject() {
 async function start() {
   wire();
 
-  viewport = new FaceViewport($('viewport'), (index, change) => {
+  // Building the viewport means creating a WebGL context, and that throws on
+  // a machine that cannot give one -- a blocked driver, a remote desktop, a
+  // virtual machine with no GPU. It used to be the first statement in this
+  // function and outside any catch, so that throw took the whole of `start`
+  // with it, including the `draw()` at the end: no face, and no panels
+  // either, from a window that had just opened cleanly.
+  try {
+    viewport = buildViewport();
+  } catch (error) {
+    viewport = null;
+    showTrouble(
+      'This machine could not give the studio a 3D view: ' +
+        `${error}. Everything else works, and the numbers in the inspector ` +
+        'are the lens -- the face is a picture of them.',
+    );
+  }
+
+  try {
+    const mesh = await fetch('face/canonical_face_model.obj').then((it) => it.text());
+    await viewport?.load(mesh);
+  } catch (error) {
+    // The face is the centre of this tool, so its absence is said out loud
+    // rather than leaving an empty black rectangle that reads as a hang.
+    if (viewport) showTrouble(`The face mesh would not load: ${error}`);
+  }
+
+  draw();
+}
+
+/** The workspace's message, shown over the face or instead of it. */
+function showTrouble(words) {
+  const host = $('viewport');
+  host.querySelector('.viewport-trouble')?.remove();
+  if (!words) return;
+  host.append(element('p', { class: 'viewport-trouble', text: words }));
+}
+
+function buildViewport() {
+  const made = new FaceViewport($('viewport'), (index, change) => {
     const attachment = editor.project.attachments[index];
     if (!attachment) return;
 
@@ -701,23 +834,12 @@ async function start() {
       offsetY: round((attachment.offsetY ?? 0) + change.dy),
     });
   });
-  viewport.onSelect = (index) => editor.select({ kind: 'attachment', index });
-
-  try {
-    const mesh = await fetch('face/canonical_face_model.obj').then((it) => it.text());
-    await viewport.load(mesh);
-  } catch (error) {
-    // The face is the centre of this tool, so its absence is said out loud
-    // rather than leaving an empty black rectangle that reads as a hang.
-    $('viewport').append(
-      element('p', {
-        class: 'empty',
-        text: `The face mesh would not load: ${error}`,
-      }),
+  made.onSelect = (index) => editor.select({ kind: 'attachment', index });
+  made.onTrouble = (words) =>
+    showTrouble(
+      words && `${words} ${JSON.stringify(made.diagnostics())}`,
     );
-  }
-
-  draw();
+  return made;
 }
 
 const round = (value) => Math.round(value * 10000) / 10000;

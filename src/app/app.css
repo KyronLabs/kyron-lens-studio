@@ -219,8 +219,23 @@ button.primary:hover:not(:disabled) { background: #2ee4c1; border-color: #2ee4c1
 .view { display: none; position: relative; min-height: 0; overflow: hidden; padding: 16px; }
 .view.is-on { display: grid; place-items: center; }
 
-.viewport { width: 100%; height: 100%; }
+.viewport { width: 100%; height: 100%; position: relative; }
 .viewport canvas { display: block; }
+
+/* What the workspace says when it cannot show a face. Over the canvas rather
+   than after it: when the context is lost the canvas is still there, still
+   the full size of the pane, and still black. */
+.viewport-trouble {
+  position: absolute;
+  inset: auto 0 0 0;
+  margin: 0;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.72);
+  border-top: 1px solid var(--edge);
+  color: var(--warn, #ffb800);
+  font-size: 12px;
+  line-height: 1.45;
+}
 
 #photo {
   max-width: 100%; max-height: 100%;
