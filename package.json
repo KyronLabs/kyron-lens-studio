@@ -17,8 +17,8 @@
     "dist": "npm run vendor && electron-builder --win"
   },
   "devDependencies": {
-    "electron": "^32.2.0",
-    "electron-builder": "^25.1.8",
+    "electron": "32.3.3",
+    "electron-builder": "25.1.8",
     "three": "0.169.0"
   },
   "build": {
@@ -31,7 +31,24 @@
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "icon": "assets/icon/icon.ico",
+      "signAndEditExecutable": true
+    },
+    "copyright": "Copyright (c) KyronLabs",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets/icon"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Kyron Lens Studio",
+      "artifactName": "KyronLensStudio-Setup-${version}.${ext}"
     }
-  }
+  },
+  "author": "KyronLabs"
 }

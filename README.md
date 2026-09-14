@@ -7,13 +7,17 @@ A Windows desktop tool for authoring lenses for
 something, position it on a 3D face, see it the way the camera will, and open
 a pull request against the catalogue without touching JSON.
 
-> **State: the editor runs; the Windows build has never been run.** The
-> panels, the 3D face, the colour engine and the publish plan all work and are
-> photographed on every push — in headless Chromium, because Electron's
-> renderer *is* Chromium and the machine this was built on is not Windows.
-> What has never been executed anywhere is `electron .` and
-> `electron-builder --win`. [What is here and what is
-> next](#what-is-here) keeps that line visible.
+> **State: the editor runs, and the Windows installer is built on every
+> push.** The panels, the 3D face, the colour engine and the publish plan all
+> work and are photographed on every push — in headless Chromium, because
+> Electron's renderer *is* Chromium and the machine this was built on is not
+> Windows. `electron-builder --win` now runs on a Windows runner and the
+> installer it produces is checked before it is uploaded: it has to be an
+> NSIS executable of a plausible size, carrying an application named Kyron
+> Lens Studio, whose packaged payload holds every file the renderer loads.
+> What still has not been executed anywhere is `electron .` on a real
+> desktop — the window has never been opened by a person. [What is here and
+> what is next](#what-is-here) keeps that line visible.
 
 ---
 
@@ -190,9 +194,10 @@ against a 25° head tilt comes out upright*.
 
 Honestly, in the order it should be done:
 
-1. **Run it on Windows.** `npm start` and `npm run dist` have never been
-   executed. Everything else here is checked; those two are not, and nothing
-   in this README should be read as saying otherwise.
+1. **Open the window on Windows.** `npm run dist` now runs in CI on every
+   push and its output is checked, so the installer is real. `npm start` — the
+   app running in front of a person, on a desktop — still has not happened,
+   and nothing in this README should be read as saying otherwise.
 2. **A real photograph behind the effects.** A fill takes skin sampled from a
    face and paints a region of that same face with it; a chart cannot show
    that. This needs a photograph somebody consented to being shipped in a
@@ -211,7 +216,9 @@ Honestly, in the order it should be done:
 **Electron + Three.js.** Three.js is the only part of this that is not a
 choice: a face mesh you can turn, with artwork positioned against it, is what
 it is for. Canvas 2D handles the painting, Node handles the files, and
-`electron-builder` produces the Windows installer.
+`electron-builder` produces the Windows installer, pinned to an exact
+version along with Electron itself: it refuses to build from a range, so
+`npm run dist` could not have worked until both were pinned.
 
 The camera over that mesh is **orthographic**, and that is not a style
 decision. An attachment is a flat sprite in the pupil-gap plane: offset Y of

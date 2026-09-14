@@ -84,3 +84,46 @@ jobs:
         with:
           name: the-window
           path: /tmp/shots
+
+  # The thing people actually download.
+  #
+  # `npm run dist` existed and had never run anywhere: electron-builder
+  # refuses a version range, and both `electron` and `electron-builder` were
+  # ranges, so the script could only ever have failed. They are pinned now,
+  # the way `three` already was.
+  #
+  # On a real Windows runner rather than through wine. Cross-building the
+  # installer from Linux needs wine for the step that stamps the icon and the
+  # product name into the executable, and an application whose taskbar entry
+  # says "Electron" is not the one anybody meant to ship.
+  windows:
+    name: The Windows application builds
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Not --ignore-scripts here, unlike the job above: electron's own
+      # postinstall is what fetches the runtime electron-builder packages.
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Build the installer
+        run: npm run dist
+
+      # Because "electron-builder exited 0" is not the same as "there is an
+      # application here". The two files the renderer loads are gitignored
+      # build output, so a build that skipped tools/vendor.mjs produces a
+      # studio that installs, launches and shows an empty window -- which is
+      # exactly the fault a green tick hides.
+      - name: It is a real application
+        run: node tools/check-windows-build.mjs dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kyron-lens-studio-windows
+          path: dist/*.exe
+          if-no-files-found: error
