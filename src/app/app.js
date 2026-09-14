@@ -14,6 +14,7 @@
 // would be written into the catalogue. A studio whose preview comes from
 // somewhere else is a studio that lies.
 
+import { matching, resourceName } from '../format/artwork.js';
 import { ANCHORS, REGIONS } from '../format/lens.js';
 import { fromAdjustments } from '../format/matrix.js';
 import { publishPlan } from '../format/project.js';
@@ -137,7 +138,9 @@ function drawResources() {
   if (!editor.project.resources.length) {
     const empty = document.createElement('li');
     empty.className = 'drop';
-    empty.textContent = 'Nothing imported yet. Paint something, or drop a PNG here.';
+    empty.textContent =
+      'Nothing imported yet. Take something from the Kyron library, ' +
+      'paint something, or drop a PNG here.';
     list.append(empty);
     return;
   }
@@ -815,6 +818,7 @@ function wire() {
   globalThis.addEventListener('resize', () => viewport?.resize());
 
   wirePaint();
+  wireLibrary();
   wireFiles();
 }
 
@@ -851,6 +855,188 @@ function wirePaint() {
     dialog.close();
     forgetArtwork();
   });
+}
+
+// ---------------------------------------------------------------------------
+// The Kyron artwork library
+// ---------------------------------------------------------------------------
+
+/**
+ * The library, once it has been read. Null until somebody opens the dialog.
+ *
+ * Fetched at most once per window, and not at all if nobody asks: a tool that
+ * reaches the network on startup is a tool that is slow to open on a train,
+ * for a list most sessions will never look at.
+ */
+let library = null;
+
+/** Piece id -> the picture as a data URL, so each is fetched once. */
+const libraryBytes = new Map();
+
+/** Watches tiles so a piece is only fetched once somebody can see it. */
+let libraryWatcher = null;
+
+function wireLibrary() {
+  $('library').addEventListener('click', openLibrary);
+
+  // Typing filters what is drawn. No submit button and no debounce: the list
+  // is already in memory, and a filter that waits is a filter that feels
+  // broken.
+  $('library-search').addEventListener('input', drawLibrary);
+
+  // The grid is rebuilt on every keystroke, so the observer has to let go of
+  // the tiles that went with it.
+  $('library-dialog').addEventListener('close', () => {
+    libraryWatcher?.disconnect();
+    libraryWatcher = null;
+  });
+}
+
+async function openLibrary() {
+  const dialog = $('library-dialog');
+  if (!dialog.open) dialog.showModal();
+  $('library-search').focus();
+
+  if (library) {
+    drawLibrary();
+    return;
+  }
+
+  if (!studio) {
+    librarySays('The artwork library needs the application, and this is a bare page.', true);
+    return;
+  }
+
+  librarySays('Reading the library…');
+  $('library-grid').replaceChildren();
+
+  const answer = await studio.artworkCatalogue();
+  // Said, not swallowed. An empty grid because a fetch failed looks exactly
+  // like a library with nothing in it, and the person looking at it would
+  // have no way to tell which they were seeing.
+  if (answer?.error) {
+    librarySays(answer.error, true);
+    return;
+  }
+
+  library = answer.pieces;
+  drawLibrary();
+}
+
+function librarySays(words, bad = false) {
+  const note = $('library-note');
+  note.textContent = words;
+  note.classList.toggle('is-bad', bad);
+}
+
+function drawLibrary() {
+  const grid = $('library-grid');
+  grid.replaceChildren();
+  libraryWatcher?.disconnect();
+  libraryWatcher = new IntersectionObserver(onLibraryVisible, { root: grid });
+
+  const shown = matching(library ?? [], $('library-search').value);
+  if (!shown.length) {
+    librarySays(
+      library?.length
+        ? 'Nothing in the library matches that.'
+        : 'The library is empty.',
+    );
+    return;
+  }
+
+  for (const piece of shown) grid.append(libraryTile(piece));
+
+  const licences = [...new Set(shown.map((it) => it.licence).filter(Boolean))];
+  librarySays(
+    `${shown.length} piece${shown.length === 1 ? '' : 's'}` +
+      (licences.length === 1 ? `, all ${licences[0]}: yours to use, credit optional.` : '.'),
+  );
+}
+
+function libraryTile(piece) {
+  const tile = element('button', { class: 'library-piece' });
+  tile.type = 'button';
+  tile.dataset.piece = piece.id;
+  tile.setAttribute('role', 'listitem');
+  tile.setAttribute('aria-pressed', 'false');
+  tile.title = piece.author ? `${piece.name} — ${piece.author}` : piece.name;
+
+  const picture = document.createElement('img');
+  picture.alt = '';
+  const already = libraryBytes.get(piece.id);
+  if (already) picture.src = already;
+
+  tile.append(picture, element('span', { class: 'library-name', text: piece.name }));
+  tile.addEventListener('click', () => addFromLibrary(piece, tile));
+
+  if (!already) libraryWatcher.observe(tile);
+  return tile;
+}
+
+function onLibraryVisible(entries) {
+  for (const entry of entries) {
+    if (!entry.isIntersecting) continue;
+    libraryWatcher.unobserve(entry.target);
+    const piece = (library ?? []).find((it) => it.id === entry.target.dataset.piece);
+    if (piece) void showLibraryPicture(piece, entry.target);
+  }
+}
+
+/**
+ * Fetches one piece and shows it, at most once.
+ *
+ * The bytes come back through the main process as a data URL, because the
+ * window's img-src is `'self' data:` -- it has no way to load a picture off
+ * the internet, which is the property that makes a document holding somebody
+ * else's PNG safe to have open.
+ */
+async function showLibraryPicture(piece, tile) {
+  const held = libraryBytes.get(piece.id);
+  if (held) {
+    tile.querySelector('img').src = held;
+    return held;
+  }
+
+  const answer = await studio.artworkFetch(piece.url);
+  if (answer?.error) {
+    // The tile keeps its name and stops being clickable, so the failure is
+    // one piece rather than a grid that half works with no explanation.
+    tile.disabled = true;
+    tile.title = answer.error;
+    tile.querySelector('.library-name').textContent = `${piece.name} — unavailable`;
+    return null;
+  }
+
+  libraryBytes.set(piece.id, answer.bytes);
+  if (tile.isConnected) tile.querySelector('img').src = answer.bytes;
+  return answer.bytes;
+}
+
+async function addFromLibrary(piece, tile) {
+  const bytes = await showLibraryPicture(piece, tile);
+  if (!bytes) return;
+
+  const taken = editor.project.resources.map((it) => it.name);
+  const name = resourceName(piece, taken);
+
+  let image;
+  try {
+    image = await decode(bytes);
+  } catch {
+    tile.disabled = true;
+    tile.title = 'That picture would not decode.';
+    return;
+  }
+
+  editor.addResource({ name, bytes, width: image.width, height: image.height });
+  forgetArtwork();
+
+  // Stays open and says what happened, because picking three is as ordinary
+  // as picking one, and a dialog that shuts on the first click makes the
+  // second and third feel like a mistake being corrected.
+  tile.setAttribute('aria-pressed', 'true');
+  librarySays(`Added ${name}. It is in Resources; add an attachment to place it.`);
 }
 
 function wireFiles() {
@@ -971,14 +1157,19 @@ function drawFirstRun() {
   panel.append(
     element('p', {
       class: 'first-run-line',
-      text: 'A lens is artwork pinned to a face. Import a PNG or paint one, ' +
-        'add an attachment, then drag it where it should sit.',
+      text: 'A lens is artwork pinned to a face. Take a piece from the Kyron ' +
+        'library, import a PNG or paint one, add an attachment, then drag it ' +
+        'where it should sit.',
     }),
   );
 
+  // The library leads, because it is the only one of the three that asks
+  // nothing of somebody who opened this tool with no artwork and no drawing
+  // in them -- which is everybody, the first time.
   const actions = element('div', { class: 'first-run-actions' });
   for (const [label, kind, target] of [
-    ['Import artwork…', 'primary', 'import'],
+    ['Kyron library…', 'primary', 'library'],
+    ['Import artwork…', 'ghost', 'import'],
     ['Paint one instead', 'ghost', 'paint'],
   ]) {
     const button = element('button', { class: kind, text: label });

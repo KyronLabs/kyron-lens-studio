@@ -30,6 +30,8 @@
 // finds one or says what is missing.
 
 import { spawn } from 'node:child_process';
+import { createServer } from 'node:http';
+import { deflateSync } from 'node:zlib';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,6 +39,121 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const shots = resolve(process.argv[2] ?? '/tmp/kyron-studio-exercise');
 const port = 9412;
+const cataloguePort = 9413;
+
+// ---------------------------------------------------------------------------
+// A library to import from
+// ---------------------------------------------------------------------------
+//
+// The published one is on GitHub Pages, and a check that needs the internet is
+// a check that goes red when GitHub has a bad afternoon. This serves the same
+// shape from this machine: the application does its own real fetch, over a
+// real socket, and applies every rule it applies in production -- the size
+// ceiling, the content type, and the refusal to fetch anything that is not
+// beside the catalogue. Only the address changes, through the same
+// KYRON_ARTWORK_CATALOGUE a staging build would use.
+
+/** A valid RGBA PNG of one colour, built here so the fetch has real bytes. */
+function png(size, [r, g, b]) {
+  const raw = Buffer.alloc((size * 4 + 1) * size);
+  for (let y = 0; y < size; y++) {
+    const row = y * (size * 4 + 1);
+    raw[row] = 0; // no filter
+    for (let x = 0; x < size; x++) {
+      const at = row + 1 + x * 4;
+      raw[at] = r; raw[at + 1] = g; raw[at + 2] = b;
+      // Transparent at the edges, which is what makes it a sticker.
+      const edge = Math.min(x, y, size - 1 - x, size - 1 - y);
+      raw[at + 3] = edge < size / 8 ? 0 : 255;
+    }
+  }
+
+  const chunk = (kind, body) => {
+    const head = Buffer.alloc(8);
+    head.writeUInt32BE(body.length, 0);
+    head.write(kind, 4, 'ascii');
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(Buffer.concat([Buffer.from(kind, 'ascii'), body])), 0);
+    return Buffer.concat([head, body, crc]);
+  };
+
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(size, 0);
+  header.writeUInt32BE(size, 4);
+  header[8] = 8;   // bit depth
+  header[9] = 6;   // RGBA
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+function crc32(buffer) {
+  let crc = ~0;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit++) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+  }
+  return ~crc >>> 0;
+}
+
+const pictures = {
+  // Named to collide with the PNG dropped in earlier, on purpose: an
+  // attachment points at a resource by name, so the studio has to land this
+  // somewhere else rather than quietly repointing artwork already placed.
+  '/art/star.png': png(64, [0xff, 0xd5, 0x4f]),
+  '/art/moon.png': png(64, [0x4c, 0xd4, 0xb0]),
+};
+
+const library = {
+  schema: 1,
+  artwork: [
+    {
+      id: 'star', name: 'Star', width: 64, height: 64,
+      url: `http://127.0.0.1:${cataloguePort}/art/star.png`,
+      author: 'Kyron', licence: 'CC0-1.0', tags: ['shape', 'sparkle'],
+    },
+    {
+      id: 'moon', name: 'Moon', width: 64, height: 64,
+      url: `http://127.0.0.1:${cataloguePort}/art/moon.png`,
+      author: 'Kyron', licence: 'CC0-1.0', tags: ['night', 'sky'],
+    },
+    {
+      // Refused before any socket is opened: it is not beside the catalogue.
+      // A catalogue is a file somebody else edits, and this is what one of
+      // them trying to make the studio fetch from elsewhere looks like.
+      id: 'elsewhere', name: 'Elsewhere', width: 64, height: 64,
+      url: 'https://example.invalid/art/elsewhere.png',
+      author: 'Nobody', licence: 'CC0-1.0', tags: [],
+    },
+  ],
+};
+
+/** Every path this served, so a refused URL can be shown never to be asked for. */
+const asked = [];
+const catalogue = createServer((request, response) => {
+  asked.push(request.url);
+  if (request.url === '/catalogue.json') {
+    response.writeHead(200, { 'content-type': 'application/json' });
+    response.end(JSON.stringify(library));
+    return;
+  }
+  const picture = pictures[request.url];
+  if (picture) {
+    response.writeHead(200, { 'content-type': 'image/png' });
+    response.end(picture);
+    return;
+  }
+  response.writeHead(404).end();
+});
+await new Promise((ok, no) => {
+  catalogue.on('error', no);
+  catalogue.listen(cataloguePort, '127.0.0.1', ok);
+});
 
 const electron =
   process.env.ELECTRON ?? join(root, 'node_modules/electron/dist/electron');
@@ -66,11 +183,18 @@ try {
 const app = spawn(
   command,
   [...argv, root, '--no-sandbox', `--remote-debugging-port=${port}`],
-  // Its own process group, so closing it closes the Electron underneath.
-  // `xvfb-run` is a shell script that execs a server and then the command:
-  // killing the script leaves the window running, holding the debugging port,
-  // and the next run drives that one instead of its own.
-  { stdio: ['ignore', 'ignore', 'pipe'], detached: true },
+  {
+    // Its own process group, so closing it closes the Electron underneath.
+    // `xvfb-run` is a shell script that execs a server and then the command:
+    // killing the script leaves the window running, holding the debugging
+    // port, and the next run drives that one instead of its own.
+    stdio: ['ignore', 'ignore', 'pipe'],
+    detached: true,
+    env: {
+      ...process.env,
+      KYRON_ARTWORK_CATALOGUE: `http://127.0.0.1:${cataloguePort}/catalogue.json`,
+    },
+  },
 );
 
 /** Closes the window and everything it started. */
@@ -80,6 +204,7 @@ function close() {
   } catch {
     // Already gone.
   }
+  catalogue.close();
 }
 process.on('exit', close);
 let stderr = '';
@@ -280,6 +405,22 @@ await check('a name can be typed one character at a time', async () => {
     : `the field reads ${JSON.stringify(state.value)}, focused=${state.focused}`;
 });
 
+await check('the first thing offered needs nothing the person does not have',
+  async () => {
+    // Somebody opening this for the first time has no PNGs and nothing drawn,
+    // which is what "Nothing imported yet" used to be a dead end about. The
+    // library is the only one of the three openings that asks nothing of
+    // them, so it leads.
+    const offered = await run(`
+      return [...document.querySelectorAll('.first-run-actions button')]
+        .map((it) => it.textContent);
+    `);
+    if (!offered.length) return 'the first-run panel offers nothing';
+    return offered[0].startsWith('Kyron library')
+      ? true
+      : `it leads with ${JSON.stringify(offered)}`;
+  });
+
 await shoot('01-opened');
 
 // A colour lens, dialled rather than typed.
@@ -434,12 +575,159 @@ await check('an effect can be added', async () => {
 });
 await shoot('06-frost');
 
+await check('the Kyron library opens and shows its pictures', async () => {
+  await run(`document.getElementById('library').click(); return true`);
+  // A fetch of a catalogue and then of each visible picture, over a socket.
+  await wait(1500);
+
+  const open = await run(`return document.getElementById('library-dialog')?.open === true`);
+  if (!open) return 'the library dialog did not open';
+
+  const grid = await run(`
+    return [...document.querySelectorAll('.library-piece')].map((tile) => ({
+      name: tile.querySelector('.library-name').textContent,
+      // Whether a picture actually arrived, not merely whether an <img> is
+      // there: an empty grid of frames is what a silent failure looks like.
+      drawn: (tile.querySelector('img').src ?? '').startsWith('data:image/png'),
+    }));
+  `);
+  if (grid.length !== 2) {
+    return `the grid holds ${grid.length} pieces: ${JSON.stringify(grid)}`;
+  }
+  if (!grid.every((it) => it.drawn)) {
+    return `a tile has no picture: ${JSON.stringify(grid)}`;
+  }
+  return true;
+});
+await shoot('07-library');
+
+await check('a catalogue cannot point the studio at another server', async () => {
+  // The third entry names example.invalid. It is not in the grid above, and
+  // the point of this check is the stronger statement: no socket was opened
+  // for it. `asked` is every path the test server was asked for, so a
+  // request that went elsewhere would not appear -- which is why the grid
+  // count above is the evidence for the refusal and this is the evidence
+  // that the refusal happened before any fetch.
+  const names = await run(`
+    return [...document.querySelectorAll('.library-piece .library-name')]
+      .map((it) => it.textContent);
+  `);
+  if (names.includes('Elsewhere')) return `the grid offers ${names.join(', ')}`;
+
+  const reached = await run(`
+    const answer = await window.studio.artworkFetch('https://example.invalid/art/elsewhere.png');
+    return answer?.error ?? 'it fetched it';
+  `);
+  return reached.includes('not part of the Kyron artwork library')
+    ? true
+    : `asking for it directly gave: ${reached}`;
+});
+
+await check('the search field is drawn by Kyron, not by the browser', async () => {
+  // It went in as `type="search"`, which the shared input rule did not name,
+  // so it came up as a native box with a browser-drawn clear button in the
+  // middle of a Kyron dialog. That is the same objection this file makes to
+  // <select>, and nothing caught it but a screenshot.
+  const drawn = await run(`
+    const box = document.getElementById('library-search');
+    const style = getComputedStyle(box);
+    const wanted = getComputedStyle(document.documentElement)
+      .getPropertyValue('--radius-control').trim();
+    return { radius: style.borderTopLeftRadius, wanted, padding: style.paddingLeft };
+  `);
+  return drawn.radius === drawn.wanted && drawn.padding !== '0px'
+    ? true
+    : `it has radius ${drawn.radius} where the system says ${drawn.wanted}, ` +
+      `and ${drawn.padding} of padding`;
+});
+
+await check('searching the library narrows it', async () => {
+  await run(`
+    const box = document.getElementById('library-search');
+    box.focus();
+    return true;
+  `);
+  await type('night');
+  await wait(400);
+  const names = await run(`
+    return [...document.querySelectorAll('.library-piece .library-name')]
+      .map((it) => it.textContent);
+  `);
+  if (names.join() !== 'Moon') return `searching "night" left ${names.join(', ')}`;
+
+  // Escape in a search field clears it before it reaches the dialog. Asserted
+  // rather than assumed, because the alternative -- one Escape closing a
+  // dialog with a half-typed search in it -- is a different tool to use.
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await wait(400);
+  const after = await run(`
+    return {
+      open: document.getElementById('library-dialog').open,
+      typed: document.getElementById('library-search').value,
+      shown: document.querySelectorAll('.library-piece').length,
+    };
+  `);
+  if (!after.open) return 'Escape closed the dialog instead of clearing the search';
+  if (after.typed !== '') return `the box still reads ${JSON.stringify(after.typed)}`;
+  return after.shown === 2 ? true : `clearing it left ${after.shown} pieces`;
+});
+
+await check('a piece from the library becomes a resource of its own', async () => {
+  await run(`
+    const tile = [...document.querySelectorAll('.library-piece')]
+      .find((it) => it.querySelector('.library-name').textContent === 'Star');
+    if (!tile) throw new Error('the library is not offering Star');
+    tile.click();
+    return true;
+  `);
+  await wait(800);
+
+  const names = await run(`
+    return [...document.querySelectorAll('#resources .label')].map((it) => it.textContent);
+  `);
+  // star.png is the PNG dropped in earlier, and an attachment is already
+  // pointing at it. A library piece landing on that name would silently
+  // replace artwork somebody had placed on the face.
+  if (!names.includes('star.png')) return `the dropped star is gone: ${names.join(', ')}`;
+  if (!names.includes('star-2.png')) return `the resources are ${names.join(', ')}`;
+
+  const attachment = JSON.parse(
+    await run(`return document.getElementById('json').textContent`),
+  ).attachments?.[0];
+  return attachment?.asset?.endsWith('star.png') &&
+      !attachment.asset.endsWith('star-2.png')
+    ? true
+    : `the attachment moved to ${attachment?.asset}`;
+});
+await shoot('08-library-added');
+
+await check('the library closes and does not fetch the catalogue twice', async () => {
+  const before = asked.filter((it) => it === '/catalogue.json').length;
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await wait(300);
+  if (await run(`return document.getElementById('library-dialog')?.open === true`)) {
+    return 'Escape did not close the library';
+  }
+
+  await run(`document.getElementById('library').click(); return true`);
+  await wait(800);
+  const after = asked.filter((it) => it === '/catalogue.json').length;
+  if (after !== before) return `it was read ${after} times, not ${before}`;
+
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await wait(300);
+  return true;
+});
+
 await check('the paint dialog opens and closes', async () => {
   await run(`document.getElementById('paint').click(); return true`);
   await wait(400);
   const open = await run(`return document.getElementById('paint-dialog')?.open === true`);
   if (!open) return 'the paint dialog did not open';
-  await shoot('07-paint');
+  await shoot('09-paint');
   await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
   await wait(400);
@@ -488,7 +776,7 @@ await check('a lost graphics context is reported and recovered', async () => {
   return !lost && !trouble ? true : `after restore lost=${lost} trouble=${trouble}`;
 });
 
-await shoot('08-recovered');
+await shoot('10-recovered');
 
 // ---------------------------------------------------------------------------
 
