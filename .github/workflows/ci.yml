@@ -111,6 +111,13 @@ jobs:
       - name: Install
         run: npm ci --no-audit --no-fund
 
+      # `--publish never`, inside the script. electron-builder decides to
+      # publish on its own when it sees CI, and then fails for want of a
+      # token it was never given -- which is how this job passed on the pull
+      # request and failed the moment the same commit reached main: a
+      # pull_request run does not attempt it and a push run does. The
+      # installer had already been built, correctly, both times. Nothing here
+      # cuts releases; the artifact below is how the build leaves.
       - name: Build the installer
         run: npm run dist
 
