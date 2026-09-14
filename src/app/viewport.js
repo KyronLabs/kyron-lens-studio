@@ -19,6 +19,14 @@
 import * as THREE from './vendor/three.module.js';
 
 import { ANCHOR_OFFSETS, CANONICAL_VERTICES, pupilsFrom } from '../format/face.js';
+import { handlePositions, rotationFromDrag, widthFromDrag } from './gesture.js';
+import { frameOf, localIn } from './plane.js';
+
+/** How big a handle looks, in screen pixels, at any zoom. */
+const HANDLE_PX = 9;
+
+/** How far above the top edge the rotate handle sits, in screen pixels. */
+const ROTATE_REACH_PX = 34;
 
 export class FaceViewport {
   /**
@@ -77,6 +85,7 @@ export class FaceViewport {
     this._pointer = new THREE.Vector2();
     this._dragging = null;
     this._selected = -1;
+    this._handles = this._buildHandles();
 
     this._wire();
     this.resize();
@@ -288,7 +297,130 @@ export class FaceViewport {
           ? 0.45
           : 0.25;
     });
+    this._layoutHandles();
     this.render();
+  }
+
+  // -------------------------------------------------------------------------
+  // Handles
+  // -------------------------------------------------------------------------
+
+  /**
+   * Four corners to resize by and one above the top edge to turn by.
+   *
+   * Built once and re-parented to whichever attachment is selected, so they
+   * inherit its position and rotation -- and the head's -- for free. The
+   * arithmetic they drive is in gesture.js, which can be tested; this is the
+   * part that cannot.
+   */
+  _buildHandles() {
+    const group = new THREE.Group();
+    group.name = 'handles';
+
+    // depthTest off, like the attachments: a handle behind the face is still
+    // the handle for something in front of it.
+    const skin = (colour, opacity = 1) =>
+      new THREE.MeshBasicMaterial({
+        color: colour,
+        transparent: true,
+        opacity,
+        depthTest: false,
+      });
+
+    for (const corner of ['nw', 'ne', 'se', 'sw']) {
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), skin(0x17d1b0));
+      mesh.userData.handle = { kind: 'resize', corner };
+      mesh.renderOrder = 900;
+      group.add(mesh);
+    }
+
+    const turn = new THREE.Mesh(new THREE.CircleGeometry(0.5, 20), skin(0xffb800));
+    turn.userData.handle = { kind: 'rotate' };
+    turn.renderOrder = 901;
+    group.add(turn);
+
+    // The stalk. No `userData.handle`, so it is drawn and never grabbed: it
+    // is there so the rotate handle reads as belonging to the attachment
+    // rather than floating somewhere above it.
+    const stalk = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), skin(0xffb800, 0.5));
+    stalk.name = 'stalk';
+    stalk.renderOrder = 899;
+    group.add(stalk);
+
+    return group;
+  }
+
+  /**
+   * Moves the handles onto the selected attachment, at a constant size on
+   * screen.
+   *
+   * Their positions are in the plane's own units, so they have to be redone
+   * whenever the geometry changes -- which during a resize drag is every
+   * frame, because the app writes the new width and the sprite is rebuilt
+   * from the lens.
+   */
+  _layoutHandles() {
+    const group = this._handles;
+    const plane = this._sprites[this._selected];
+    if (!plane) {
+      group.removeFromParent();
+      return;
+    }
+    // `add` detaches from the previous parent, which setLens has already
+    // disposed.
+    if (group.parent !== plane) plane.add(group);
+
+    const { width, height } = plane.geometry.parameters;
+    const perUnit = this._pixelsPerUnit();
+    const size = HANDLE_PX / perUnit;
+    const reach = ROTATE_REACH_PX / perUnit;
+
+    // Above the artwork unless that is off the top of the canvas. The first
+    // version always went above, and the first attachment anybody adds is a
+    // star over the forehead: its handle landed seven pixels above the top
+    // edge of the canvas, so the picture showed a stalk running up to
+    // nothing. Margin of the handle's own radius, so it is fully inside
+    // rather than half cut off.
+    const margin = (size * 1.3) / 2 / this.camera.top;
+    const top = plane
+      .localToWorld(new THREE.Vector3(0, height / 2 + reach + size, 0))
+      .project(this.camera).y;
+    const { resize, rotate } = handlePositions(width, height, reach, {
+      below: top > 1 - margin,
+    });
+
+    for (const mesh of group.children) {
+      const handle = mesh.userData.handle;
+      if (handle?.kind === 'resize') {
+        const spot = resize.find((it) => it.name === handle.corner);
+        mesh.position.set(spot.x, spot.y, 0.01);
+        mesh.scale.set(size, size, 1);
+      } else if (handle?.kind === 'rotate') {
+        mesh.position.set(rotate.x, rotate.y, 0.01);
+        mesh.scale.set(size * 1.3, size * 1.3, 1);
+      } else {
+        // The stalk, from whichever edge the handle went to.
+        const edge = Math.sign(rotate.y) * (height / 2);
+        mesh.position.set(0, (rotate.y + edge) / 2, 0.005);
+        mesh.scale.set(size / 4, Math.abs(rotate.y - edge), 1);
+      }
+    }
+  }
+
+  /** The attachment's rotation in the format's degrees, read off the plane. */
+  _rotationOf(index) {
+    const plane = this._sprites[index];
+    return plane ? (-plane.rotation.z * 180) / Math.PI : 0;
+  }
+
+  /** See plane.js: taken once per drag, never recomputed mid-drag. */
+  _frameOf(plane) {
+    return frameOf(plane);
+  }
+
+  /** Where the cursor is in that frame, or null when the head is edge-on. */
+  _localIn(frame) {
+    return localIn(frame, this._raycaster.ray);
   }
 
   // -------------------------------------------------------------------------
@@ -302,26 +434,79 @@ export class FaceViewport {
     canvas.addEventListener('pointerdown', (event) => {
       canvas.setPointerCapture(event.pointerId);
       const hit = this._pick(event);
-      if (hit !== null) {
-        this._dragging = { index: hit, x: event.clientX, y: event.clientY };
-        this.select(hit);
-        this.onSelect?.(hit);
-      } else {
+      if (hit === null) {
         turning = { x: event.clientX, y: event.clientY };
+        return;
       }
+
+      if (hit.kind === 'move') {
+        this._dragging = {
+          kind: 'move',
+          index: hit.index,
+          x: event.clientX,
+          y: event.clientY,
+        };
+        this.select(hit.index);
+        this.onSelect?.(hit.index);
+        return;
+      }
+
+      // A handle, so the attachment it belongs to is already selected.
+      const plane = this._sprites[hit.index];
+      if (!plane) return;
+      const frame = this._frameOf(plane);
+      const grab = this._localIn(frame);
+      if (!grab) return;
+
+      this._dragging = {
+        kind: hit.kind,
+        index: hit.index,
+        frame,
+        grab: { x: grab.x, y: grab.y },
+        width: plane.geometry.parameters.width,
+        rotation: this._rotationOf(hit.index),
+      };
     });
 
     canvas.addEventListener('pointermove', (event) => {
-      if (this._dragging) {
+      const drag = this._dragging;
+      if (drag?.kind === 'move') {
         // A drag is in screen pixels; a lens is in pupil-gaps. This is the
         // conversion the whole tool exists for, and it has to use the same
         // scale the placement did or the sticker will not follow the cursor.
         const scale = this._pixelsPerUnit();
-        const dx = (event.clientX - this._dragging.x) / scale / this.gap;
-        const dy = (event.clientY - this._dragging.y) / scale / this.gap;
-        this._dragging.x = event.clientX;
-        this._dragging.y = event.clientY;
-        this.onMove(this._dragging.index, { dx, dy });
+        const dx = (event.clientX - drag.x) / scale / this.gap;
+        const dy = (event.clientY - drag.y) / scale / this.gap;
+        drag.x = event.clientX;
+        drag.y = event.clientY;
+        this.onMove(drag.index, { dx, dy });
+        return;
+      }
+      if (drag) {
+        this._aim(event);
+        const now = this._localIn(drag.frame);
+        // Edge-on: nothing to measure, so the attachment keeps what it has
+        // until the head is turned back.
+        if (!now) return;
+
+        if (drag.kind === 'resize') {
+          const width = widthFromDrag({
+            grab: drag.grab,
+            at: now,
+            width: drag.width,
+          });
+          // Scene units back into the lens's own: the plane was built as
+          // `attachment.width * gap`, so this is that read backwards.
+          this.onMove(drag.index, { width: width / this.gap });
+        } else {
+          this.onMove(drag.index, {
+            rotation: rotationFromDrag({
+              grab: drag.grab,
+              at: now,
+              rotation: drag.rotation,
+            }),
+          });
+        }
         return;
       }
       if (!turning) return;
@@ -360,13 +545,34 @@ export class FaceViewport {
     return height / (this.camera.top - this.camera.bottom);
   }
 
-  _pick(event) {
+  /** Points the raycaster at wherever the cursor is. */
+  _aim(event) {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this._pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this._pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     this._raycaster.setFromCamera(this._pointer, this.camera);
+  }
+
+  /**
+   * What is under the cursor: a handle, an attachment, or nothing.
+   *
+   * Handles first, and by some distance -- they sit on top of the artwork
+   * they belong to, so testing the sprites first would mean the corners could
+   * never be grabbed at all.
+   */
+  _pick(event) {
+    this._aim(event);
+
+    if (this._handles.parent) {
+      const grabbable = this._handles.children.filter((it) => it.userData.handle);
+      const [grabbed] = this._raycaster.intersectObjects(grabbable, false);
+      if (grabbed) {
+        return { ...grabbed.object.userData.handle, index: this._selected };
+      }
+    }
+
     const [hit] = this._raycaster.intersectObjects(this._sprites, false);
-    return hit ? hit.object.userData.index : null;
+    return hit ? { kind: 'move', index: hit.object.userData.index } : null;
   }
 
   resize() {
@@ -382,6 +588,9 @@ export class FaceViewport {
     this.camera.left = -half * aspect;
     this.camera.right = half * aspect;
     this.camera.updateProjectionMatrix();
+    // A handle is a constant number of screen pixels, so a zoom changes what
+    // that is in scene units.
+    this._layoutHandles();
     this.render();
   }
 

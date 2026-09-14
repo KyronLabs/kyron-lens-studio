@@ -212,6 +212,30 @@ The property the whole format rests on is a test: *a lens authored on one face
 lands on the same features on a face twice the size*, and *a lens authored
 against a 25° head tilt comes out upright*.
 
+### Handles
+
+A selected attachment carries four corner handles and one above it to turn by.
+The arithmetic behind them is in `src/app/gesture.js` and the plane they run
+in is `src/app/plane.js`, both apart from `viewport.js` because that file is
+WebGL and a canvas and cannot run under `node --test`, while these are the
+half that can be quietly wrong:
+
+- a corner scales **about the centre**, so an attachment grows around its
+  anchor rather than away from the corner that was grabbed;
+- a turn is counted the way the format counts it, clockwise on screen, which
+  is the opposite of the way three rotates — one sign, and a test to itself;
+- a drag is refused, rather than written, when the head is turned far enough
+  that the cursor no longer means anything. three's own check only refuses a
+  ray *exactly* parallel to the plane, and at 90° it hands back a point 4.5e15
+  units into it — which a corner drag would publish as the width.
+
+A corner does **not** clamp to anything but a floor, for the same reason
+`attachmentFor` does not: a width of 12 gaps is absurd but it is what somebody
+dragged, and the format check is what should say so. The floor exists because
+zero is different — a plane with no width draws nothing and cannot be grabbed
+again, so a drag through the centre would lose the attachment with no way
+back.
+
 ## What is next
 
 Honestly, in the order it should be done:
@@ -224,13 +248,10 @@ Honestly, in the order it should be done:
    face and paints a region of that same face with it; a chart cannot show
    that. This needs a photograph somebody consented to being shipped in a
    tool, which is a decision rather than a task.
-3. **Drag to resize and rotate**, not just to move. The handles are the
-   obvious next thing on the face, and `attachmentFor` already does the
-   arithmetic.
-4. **Open the pull request**, rather than writing into a checkout and stopping.
+3. **Open the pull request**, rather than writing into a checkout and stopping.
    Wants a token, which wants a settings screen, which wants somewhere to keep
    a secret on Windows.
-5. **Templates.** Lens Studio opens on a gallery of them, and it is the right
+4. **Templates.** Lens Studio opens on a gallery of them, and it is the right
    idea: most lenses are a variation on a handful of shapes.
 
 ### The stack, and why

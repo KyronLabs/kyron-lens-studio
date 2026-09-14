@@ -53,6 +53,14 @@ function draw() {
   const lens = editor.lens;
   $('json').textContent = JSON.stringify(lens, null, 2);
   viewport?.setLens(lens, artwork);
+  // The selection travelled one way only: clicking the face told the tree,
+  // and picking the same attachment out of the tree told the face nothing. So
+  // an attachment selected from the list was highlighted everywhere except on
+  // the face it is on, and its handles -- which are the only way to resize or
+  // turn it -- never appeared at all.
+  viewport?.select(
+    editor.selection.kind === 'attachment' ? editor.selection.index : -1,
+  );
   drawPhoto(lens);
 
   // Decoding is asynchronous, so this cannot happen inline; what it can do is
@@ -670,12 +678,27 @@ async function saveProject() {
 async function start() {
   wire();
 
-  viewport = new FaceViewport($('viewport'), (index, { dx, dy }) => {
+  viewport = new FaceViewport($('viewport'), (index, change) => {
     const attachment = editor.project.attachments[index];
     if (!attachment) return;
+
+    // A corner handle sends the width it dragged out, and the rotate handle
+    // the angle -- both absolute, because both are computed from where the
+    // drag started rather than from the last frame. Moving is still a delta.
+    if (change.width !== undefined) {
+      editor.setAttachment(index, { width: round(change.width) });
+      return;
+    }
+    if (change.rotation !== undefined) {
+      // Two places, which is what `attachmentFor` writes rotations to.
+      editor.setAttachment(index, {
+        rotation: Math.round(change.rotation * 100) / 100,
+      });
+      return;
+    }
     editor.setAttachment(index, {
-      offsetX: round((attachment.offsetX ?? 0) + dx),
-      offsetY: round((attachment.offsetY ?? 0) + dy),
+      offsetX: round((attachment.offsetX ?? 0) + change.dx),
+      offsetY: round((attachment.offsetY ?? 0) + change.dy),
     });
   });
   viewport.onSelect = (index) => editor.select({ kind: 'attachment', index });
