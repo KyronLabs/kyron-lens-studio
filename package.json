@@ -20,6 +20,7 @@
   "devDependencies": {
     "electron": "32.3.3",
     "electron-builder": "25.1.8",
+    "kyron-design-system": "github:KyronLabs/design-system",
     "three": "0.169.0"
   },
   "build": {

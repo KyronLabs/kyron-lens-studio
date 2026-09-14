@@ -18,6 +18,14 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const copies = [
   ['node_modules/three/build/three.module.js', 'src/app/vendor/three.module.js'],
   ['assets/face/canonical_face_model.obj', 'src/app/face/canonical_face_model.obj'],
+  // Kyron's desktop tokens, consumed from the design system rather than
+  // copied into this repository -- which is what that repository's README
+  // says applications should do, and what the phone app already does through
+  // the Flutter package.
+  [
+    'node_modules/kyron-design-system/desktop/tokens.css',
+    'src/app/vendor/tokens.css',
+  ],
 ];
 
 for (const [from, to] of copies) {

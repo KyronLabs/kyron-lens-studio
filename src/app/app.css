@@ -10,20 +10,25 @@
  * preview shifts how the face reads.
  */
 
+/* The studio's own names, and every one of them is a Kyron token from
+ * vendor/tokens.css. Nothing below this block invents a colour, a size, a
+ * radius or a duration.
+ *
+ * What was here before was a palette of its own: #17181c, #1e2026, #303340,
+ * and an accent of #17d1b0 -- the leaf from the logo, which is not the
+ * accent the design system documents and is not written down in it at all.
+ * So the one desktop application Kyron ships looked like a different product
+ * from the phone app beside it.
+ */
 :root {
-  --bg: #17181c;
-  --panel: #1e2026;
-  --panel-2: #24262e;
-  --line: #303340;
-  --ink: #e7e9ef;
-  --ink-dim: #9aa0b0;
-  --ink-faint: #6b7183;
-  --accent: #17d1b0;      /* Kyron's leaf */
-  --accent-ink: #06221d;
-  --warn: #ffb74d;
-  --bad: #ff6582;
-  --radius: 8px;
-  --row: 26px;
+  --panel: var(--surface);
+  --panel-2: var(--surface-raised);
+  --line: var(--edge);
+  --ink-dim: var(--ink-soft);
+  --bad: var(--negative-600);
+  --accent-ink: #ffffff;
+  --radius: var(--radius-panel);
+  --row: var(--control-height);
 }
 
 * { box-sizing: border-box; }
@@ -33,7 +38,7 @@ html, body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: 13px/1.45 "Segoe UI", Inter, system-ui, sans-serif;
+  font: var(--font-ui)/1.45 "Segoe UI", Inter, system-ui, sans-serif;
   overflow: hidden;
   user-select: none;
 }
@@ -60,7 +65,10 @@ body {
 
 .mark {
   width: 18px; height: 18px; flex: none;
-  border-radius: 5px;
+  border-radius: var(--radius-control);
+  /* The leaf, which is the mark rather than the accent. It is brand art,
+     like the gradient behind the lens preview in the phone app, and the
+     only place in this window that is not a token. */
   background: linear-gradient(135deg, #2ee4c1, #17a0d1);
   box-shadow: 0 0 0 1px #0004 inset;
 }
@@ -72,7 +80,7 @@ body {
   font: inherit;
   font-weight: 600;
   padding: 3px 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   width: 180px;
 }
 .lens-name:hover { border-color: var(--line); }
@@ -82,43 +90,43 @@ body {
   display: inline-flex; align-items: center; gap: 6px;
   background: var(--panel-2);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   padding: 2px 10px 2px 8px;
 }
-.id-chip-label { color: var(--ink-faint); font-size: 11px; }
+.id-chip-label { color: var(--ink-faint); font-size: var(--font-1); }
 .id-chip input {
   background: transparent; border: 0; outline: none;
-  color: var(--ink-dim); font: inherit; font-size: 12px; width: 110px;
+  color: var(--ink-dim); font: inherit; font-size: var(--font-1); width: 110px;
 }
 
 .dirty {
-  color: var(--warn);
-  font-size: 11px;
-  border: 1px solid #ffb74d44;
-  border-radius: 999px;
+  color: var(--ink-soft);
+  font-size: var(--font-1);
+  border: 1px solid var(--edge-strong);
+  border-radius: var(--radius-full);
   padding: 1px 8px;
 }
 
 button {
   font: inherit;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   padding: 5px 11px;
   cursor: pointer;
   border: 1px solid var(--line);
   background: var(--panel-2);
   color: var(--ink);
 }
-button:hover:not(:disabled) { border-color: #4a4f61; background: #2b2e38; }
+button:hover:not(:disabled) { border-color: var(--edge-strong); background: var(--hover); }
 button:disabled { opacity: 0.4; cursor: default; }
 button.ghost { background: transparent; }
-button.small { padding: 3px 8px; font-size: 12px; }
+button.small { padding: 3px 8px; font-size: var(--font-1); }
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-ink);
   font-weight: 600;
 }
-button.primary:hover:not(:disabled) { background: #2ee4c1; border-color: #2ee4c1; }
+button.primary:hover:not(:disabled) { background: var(--primary-400); border-color: var(--primary-400); }
 
 /* ------------------------------------------------------------- the layout */
 
@@ -140,7 +148,7 @@ button.primary:hover:not(:disabled) { background: #2ee4c1; border-color: #2ee4c1
   position: sticky; top: 0;
   margin: 0;
   padding: 9px 12px 7px;
-  font-size: 11px;
+  font-size: var(--font-1);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -162,20 +170,20 @@ button.primary:hover:not(:disabled) { background: #2ee4c1; border-color: #2ee4c1
   display: flex; align-items: center; gap: 8px;
   height: var(--row);
   padding: 0 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   cursor: default;
   color: var(--ink-dim);
 }
-.tree li:hover, .resources li:hover { background: var(--panel-2); }
-.tree li.is-on { background: #2b3b3a; color: var(--ink); box-shadow: inset 2px 0 0 var(--accent); }
+.tree li:hover, .resources li:hover { background: var(--hover); }
+.tree li.is-on { background: var(--selected); color: var(--ink); box-shadow: inset 2px 0 0 var(--accent); }
 
 .glyph {
   width: 16px; height: 16px; flex: none;
-  border-radius: 4px;
+  border-radius: var(--radius-4);
   background: var(--panel-2);
   border: 1px solid var(--line);
   display: grid; place-items: center;
-  font-size: 9px; color: var(--ink-faint);
+  font-size: var(--font-0); color: var(--ink-faint);
 }
 .tree li.is-on .glyph { border-color: var(--accent); color: var(--accent); }
 
@@ -183,7 +191,7 @@ button.primary:hover:not(:disabled) { background: #2ee4c1; border-color: #2ee4c1
   flex: 1; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.tree .note, .resources .note { font-size: 11px; color: var(--ink-faint); }
+.tree .note, .resources .note { font-size: var(--font-1); color: var(--ink-faint); }
 
 .resources li img {
   width: 18px; height: 18px; flex: none;
@@ -191,12 +199,12 @@ button.primary:hover:not(:disabled) { background: #2ee4c1; border-color: #2ee4c1
   background:
     conic-gradient(#2a2d36 90deg, #202329 90deg 180deg, #2a2d36 180deg 270deg, #202329 270deg)
     0 0 / 8px 8px;
-  border-radius: 3px;
+  border-radius: var(--radius-2);
 }
 .resources .drop {
   padding: 10px; margin: 4px 4px 0;
   border: 1px dashed var(--line); border-radius: var(--radius);
-  color: var(--ink-faint); font-size: 12px; text-align: center;
+  color: var(--ink-faint); font-size: var(--font-1); text-align: center;
 }
 
 /* ----------------------------------------------------------------- stage */
@@ -232,8 +240,8 @@ button.primary:hover:not(:disabled) { background: #2ee4c1; border-color: #2ee4c1
   padding: 10px 14px;
   background: rgba(0, 0, 0, 0.72);
   border-top: 1px solid var(--edge);
-  color: var(--warn, #ffb800);
-  font-size: 12px;
+  color: var(--negative-600);
+  font-size: var(--font-1);
   line-height: 1.45;
 }
 
@@ -246,7 +254,7 @@ button.primary:hover:not(:disabled) { background: #2ee4c1; border-color: #2ee4c1
 .stage-hint {
   position: absolute; left: 0; right: 0; bottom: 10px;
   text-align: center;
-  font-size: 11px;
+  font-size: var(--font-1);
   color: var(--ink-faint);
   pointer-events: none;
 }
@@ -254,7 +262,7 @@ kbd {
   font: inherit;
   background: var(--panel-2);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-4);
   padding: 0 4px;
 }
 
@@ -262,7 +270,7 @@ kbd {
   margin: 0; padding: 16px 20px;
   width: 100%; height: 100%;
   overflow: auto;
-  font: 12px/1.6 "Cascadia Mono", Consolas, ui-monospace, monospace;
+  font: var(--font-1)/1.6 "Cascadia Mono", Consolas, ui-monospace, monospace;
   color: var(--ink-dim);
   user-select: text;
 }
@@ -276,18 +284,18 @@ kbd {
 .field > .field-label {
   display: flex; align-items: baseline; justify-content: space-between;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--font-1);
   color: var(--ink-dim);
   margin-bottom: 4px;
 }
 .field .value { color: var(--ink); font-variant-numeric: tabular-nums; }
-.field .unit { color: var(--ink-faint); font-size: 11px; }
+.field .unit { color: var(--ink-faint); font-size: var(--font-1); }
 
 input[type="text"], input[type="number"], select, textarea {
   width: 100%;
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   color: var(--ink);
   font: inherit;
   padding: 5px 8px;
@@ -306,12 +314,12 @@ input[type="range"] {
 
 .section {
   margin: 0 0 8px;
-  font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  font-size: var(--font-1); letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--ink-faint);
 }
 
 .hint {
-  font-size: 11px; color: var(--ink-faint);
+  font-size: var(--font-1); color: var(--ink-faint);
   margin: -4px 0 12px;
 }
 
@@ -319,17 +327,17 @@ input[type="range"] {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 3px;
-  font: 11px/1 "Cascadia Mono", Consolas, ui-monospace, monospace;
+  font: var(--font-1)/1 "Cascadia Mono", Consolas, ui-monospace, monospace;
 }
 .matrix input {
   padding: 4px 3px; text-align: center; font: inherit;
   background: var(--panel-2);
 }
-.matrix input.offset { color: var(--warn); }
+.matrix input.offset { color: var(--accent); }
 
-.danger { color: var(--bad); border-color: #ff658244; }
+.danger { color: var(--bad); border-color: var(--negative-700); }
 
-.empty { color: var(--ink-faint); font-size: 12px; padding: 6px 0 2px; }
+.empty { color: var(--ink-faint); font-size: var(--font-1); padding: 6px 0 2px; }
 
 /* ---------------------------------------------------------------- logger */
 
@@ -348,33 +356,33 @@ input[type="range"] {
   padding: 0 12px;
   border-bottom: 1px solid var(--line);
 }
-.status { font-size: 12px; color: var(--ink-dim); }
-.status.ok { color: var(--accent); }
+.status { font-size: var(--font-1); color: var(--ink-dim); }
+.status.ok { color: var(--positive-500); }
 .status.bad { color: var(--bad); }
 
 .logger-list { list-style: none; margin: 0; padding: 6px 12px 10px; overflow-y: auto; }
 .logger-list li {
   display: flex; gap: 8px; align-items: baseline;
   padding: 3px 0;
-  font-size: 12px;
+  font-size: var(--font-1);
   color: var(--ink-dim);
   user-select: text;
 }
 .logger-list .tag {
   flex: none;
-  font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+  font-size: var(--font-0); letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--bad);
-  border: 1px solid #ff658233;
-  border-radius: 4px;
+  border: 1px solid var(--negative-700);
+  border-radius: var(--radius-4);
   padding: 0 5px;
 }
-.logger-list .tag.studio { color: var(--warn); border-color: #ffb74d33; }
+.logger-list .tag.studio { color: var(--ink-faint); border-color: var(--edge-strong); }
 
 /* ----------------------------------------------------------------- paint */
 
 .paint-dialog {
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-dialog);
   background: var(--panel);
   color: var(--ink);
   padding: 0;
@@ -382,10 +390,10 @@ input[type="range"] {
 .paint-dialog::backdrop { background: #000a; }
 .paint-form { display: grid; gap: 10px; padding: 12px; }
 .paint-head, .paint-foot { display: flex; align-items: center; gap: 12px; }
-.paint-head label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-dim); }
+.paint-head label { display: flex; align-items: center; gap: 6px; font-size: var(--font-1); color: var(--ink-dim); }
 .paint-head input[type="text"], .paint-head input:not([type]) { width: 130px; }
 .paint-foot .spacer { flex: 1; }
-.muted { color: var(--ink-faint); font-size: 11px; }
+.muted { color: var(--ink-faint); font-size: var(--font-1); }
 
 #paint-canvas {
   background:
@@ -394,4 +402,115 @@ input[type="range"] {
   border-radius: var(--radius);
   cursor: crosshair;
   touch-action: none;
+}
+
+/* ------------------------------------------------------- choosing options */
+
+/* Six or fewer options are all drawn. A reader can see what is available
+   without pressing anything, which is desktop/philosophy.md §5 and is also
+   the answer to a tool being hard to learn: a hidden list teaches nobody. */
+.segmented {
+  /* Wrapping, because the right-hand panel is 288 wide and five anchors do
+     not fit across it. A segmented control whose labels read "mo…" and
+     "fore…" has lost the one thing it is for. */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  padding: 1px;
+  background: var(--edge-strong);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+
+.segment {
+  flex: 1 0 auto;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: var(--font-1);
+  padding: 0 var(--space-8);
+  height: var(--control-height);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background var(--motion-state), color var(--motion-state);
+}
+.segment:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.segment.is-on {
+  background: var(--selected);
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+
+/* A longer list gets a trigger and a popover. */
+.picker {
+  width: 100%;
+  text-align: left;
+  height: var(--control-height);
+  background: var(--bg);
+  border: 1px solid var(--edge-strong);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  padding: 0 var(--space-8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popover {
+  position: fixed;
+  z-index: 40;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: var(--space-4);
+  background: var(--surface-raised);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-panel);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.popover-item {
+  border: 0;
+  border-radius: var(--radius-2);
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: var(--font-ui);
+  text-align: left;
+  height: var(--control-min);
+  padding: 0 var(--space-8);
+  white-space: nowrap;
+}
+.popover-item:hover { background: var(--hover); color: var(--ink); }
+.popover-item.is-on { background: var(--selected); color: var(--ink); }
+
+/* --------------------------------------------------------- the first run */
+
+/* One sentence and the first action, over the face, while the lens is empty.
+   Removed the moment there is anything in it. */
+.first-run {
+  position: absolute;
+  left: 50%;
+  top: var(--space-24);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-8);
+  width: min(460px, calc(100% - var(--space-40)));
+  padding: var(--space-12) var(--space-16);
+  background: var(--surface-raised);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-panel);
+}
+
+.first-run-actions { display: flex; gap: var(--space-8); }
+
+.first-run-line {
+  margin: 0;
+  font-size: var(--font-ui);
+  line-height: 1.5;
+  color: var(--ink-soft);
 }

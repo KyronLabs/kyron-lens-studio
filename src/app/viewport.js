@@ -22,6 +22,17 @@ import { ANCHOR_OFFSETS, CANONICAL_VERTICES, pupilsFrom } from '../format/face.j
 import { handlePositions, rotationFromDrag, widthFromDrag } from './gesture.js';
 import { frameOf, localIn } from './plane.js';
 
+/* The scene's three colours, and all three are Kyron tokens.
+ *
+ * They were #17d1b0 and #ffb800 -- the leaf from the logo and an amber from
+ * nowhere, neither of them in the design system. The distinction they were
+ * drawing is worth keeping and is now drawn in tokens: the accent is what you
+ * can take hold of, and positive_500 is a landmark on the face, which is
+ * information rather than a control.
+ */
+const HANDLE = 0x006aff; // primary_500, the accent
+const LANDMARK = 0x4cd4b0; // positive_500
+
 /** How big a handle looks, in screen pixels, at any zoom. */
 const HANDLE_PX = 9;
 
@@ -196,7 +207,7 @@ export class FaceViewport {
     for (const [name, offset] of Object.entries(ANCHOR_OFFSETS)) {
       const dot = new THREE.Mesh(
         new THREE.SphereGeometry(this.gap * 0.06, 12, 8),
-        new THREE.MeshBasicMaterial({ color: 0x17d1b0 }),
+        new THREE.MeshBasicMaterial({ color: LANDMARK }),
       );
       // Positive y is down in the format and up in three, hence the sign.
       dot.position.set(
@@ -248,9 +259,12 @@ export class FaceViewport {
             depthTest: false,
           })
         : new THREE.MeshBasicMaterial({
-            color: 0x17d1b0,
+            color: HANDLE,
             transparent: true,
-            opacity: 0.25,
+            // Faint. At 0.25 an attachment with no artwork yet covered the
+            // face it is being placed against, which is the one thing the
+            // outline has to leave visible.
+            opacity: 0.14,
             depthTest: false,
           });
 
@@ -296,11 +310,15 @@ export class FaceViewport {
   select(index) {
     this._selected = index;
     this._sprites.forEach((sprite, at) => {
+      // An attachment with no artwork yet is an outline, and an outline has
+      // to leave the face under it visible -- that face is the whole reason
+      // to place anything against it. Selected is brighter than not, which is
+      // the only job these two numbers have.
       sprite.material.opacity = sprite.material.map
         ? 1
         : at === index
-          ? 0.45
-          : 0.25;
+          ? 0.22
+          : 0.12;
     });
     this._layoutHandles();
     this.render();
@@ -333,13 +351,13 @@ export class FaceViewport {
       });
 
     for (const corner of ['nw', 'ne', 'se', 'sw']) {
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), skin(0x17d1b0));
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), skin(HANDLE));
       mesh.userData.handle = { kind: 'resize', corner };
       mesh.renderOrder = 900;
       group.add(mesh);
     }
 
-    const turn = new THREE.Mesh(new THREE.CircleGeometry(0.5, 20), skin(0xffb800));
+    const turn = new THREE.Mesh(new THREE.CircleGeometry(0.5, 20), skin(HANDLE));
     turn.userData.handle = { kind: 'rotate' };
     turn.renderOrder = 901;
     group.add(turn);
@@ -347,7 +365,7 @@ export class FaceViewport {
     // The stalk. No `userData.handle`, so it is drawn and never grabbed: it
     // is there so the rotate handle reads as belonging to the attachment
     // rather than floating somewhere above it.
-    const stalk = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), skin(0xffb800, 0.5));
+    const stalk = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), skin(HANDLE, 0.5));
     stalk.name = 'stalk';
     stalk.renderOrder = 899;
     group.add(stalk);
