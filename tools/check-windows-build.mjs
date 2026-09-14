@@ -34,8 +34,11 @@ const REQUIRED_IN_ASAR = [
   'src/app/plane.js',
   'src/format/lens.js',
   'src/format/face.js',
-  // The two copies. Gitignored, so these are the ones that go missing.
+  // The three copies. Gitignored build output, so these are the ones that go
+  // missing -- and a studio that installs, launches and shows an unstyled
+  // window is exactly the fault a green tick hides.
   'src/app/vendor/three.module.js',
+  'src/app/vendor/tokens.css',
   'src/app/face/canonical_face_model.obj',
 ];
 

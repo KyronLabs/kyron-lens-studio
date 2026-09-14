@@ -95,6 +95,42 @@ jobs:
           name: the-window
           path: /tmp/shots
 
+  # The application, used.
+  #
+  # The job above loads the renderer in headless Chromium, which is not
+  # Electron: no preload, no file:// origin, and command-line flags a packaged
+  # application does not have. `node --test` covers the modules underneath.
+  #
+  # Neither saw any of the three faults that reached somebody running the
+  # installed studio -- a text field that took one character per click,
+  # handles that never appeared, a rotate handle off the top of the canvas.
+  # Each is a sentence about what happens when a person uses the window, and
+  # the only way to check one is to use the window.
+  app:
+    name: The application works when it is used
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Not --ignore-scripts: this one needs the Electron binary, which is
+      # what electron's own postinstall fetches.
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      # A window needs somewhere to open. The runner image ships Xvfb.
+      - name: Use it
+        run: xvfb-run -a --server-args="-screen 0 1440x900x24" npm run test:app
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: the-window-in-use
+          path: /tmp/kyron-studio-exercise
+
   # The thing people actually download.
   #
   # `npm run dist` existed and had never run anywhere: electron-builder

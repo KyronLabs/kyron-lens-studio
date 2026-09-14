@@ -690,6 +690,11 @@ export class FaceViewport {
       contextLost: gl.isContextLost(),
       faceVertices: this.face?.geometry.attributes.position.count ?? 0,
       attachments: this._sprites.length,
+      selected: this._selected,
+      // Which attachment the handles are on, or -1. The handles are the only
+      // way to resize or turn one, and they were once invisible for a whole
+      // release because the selection never reached this object.
+      handlesOn: this._handles.parent?.userData.index ?? -1,
       trianglesLastFrame: this.renderer.info.render.triangles,
       driver: names
         ? gl.getParameter(names.UNMASKED_RENDERER_WEBGL)

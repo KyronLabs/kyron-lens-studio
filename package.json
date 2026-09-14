@@ -15,7 +15,8 @@
     "start": "npm run vendor && electron .",
     "shots": "npm run vendor && node tools/shoot.mjs",
     "dist": "npm run vendor && electron-builder --win --publish never",
-    "test:format": "node --test \"test/*.test.js\""
+    "test:format": "node --test \"test/*.test.js\"",
+    "test:app": "npm run vendor && node tools/exercise.mjs"
   },
   "devDependencies": {
     "electron": "32.3.3",

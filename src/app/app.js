@@ -1031,6 +1031,20 @@ function buildViewport() {
   return made;
 }
 
+/**
+ * What the window can say about itself, for when it comes up wrong.
+ *
+ * Press F12 and run `studioDiagnostics()`. It answers with the size of the
+ * canvas, whether there is a graphics context, how many triangles the last
+ * frame drew, which driver drew them, and which attachment the handles are
+ * on -- which is the set of questions that cannot be answered from a
+ * screenshot of a black rectangle.
+ *
+ * `tools/exercise.mjs` reads the same thing, so the support answer and the
+ * test are the same answer.
+ */
+globalThis.studioDiagnostics = () => viewport?.diagnostics() ?? null;
+
 const round = (value) => Math.round(value * 10000) / 10000;
 
 start();
