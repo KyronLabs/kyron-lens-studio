@@ -291,7 +291,8 @@ kbd {
 .field .value { color: var(--ink); font-variant-numeric: tabular-nums; }
 .field .unit { color: var(--ink-faint); font-size: var(--font-1); }
 
-input[type="text"], input[type="number"], select, textarea {
+input[type="text"], input[type="number"], input[type="search"],
+select, textarea {
   width: 100%;
   background: var(--bg);
   border: 1px solid var(--line);
@@ -302,6 +303,12 @@ input[type="text"], input[type="number"], select, textarea {
   outline: none;
 }
 input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+
+/* A search field comes with a clear button the browser draws in its own
+   shape. It is the same objection this file makes to <select>: a control in
+   the middle of a Kyron dialog, drawn by somebody else. Escape clears the
+   box, which is what the button was for. */
+input[type="search"]::-webkit-search-cancel-button { display: none; }
 
 input[type="range"] {
   width: 100%;
@@ -514,3 +521,70 @@ input[type="range"] {
   line-height: 1.5;
   color: var(--ink-soft);
 }
+
+/* ------------------------------------------------- the Kyron artwork library
+
+   A grid of pictures rather than a list of names, because artwork is chosen
+   by looking at it. Ten pieces today and meant to grow, which is why there is
+   a search field from the start rather than once the grid stops fitting.   */
+
+.library-dialog {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-dialog);
+  background: var(--panel);
+  color: var(--ink);
+  padding: 0;
+  width: min(760px, 92vw);
+}
+.library-dialog::backdrop { background: #000a; }
+
+.library-form { display: grid; gap: var(--space-8); padding: var(--space-12); }
+
+.library-head { display: flex; align-items: center; gap: var(--space-12); }
+.library-head .spacer { flex: 1; }
+.library-search { width: 220px; }
+
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-8);
+  max-height: min(56vh, 420px);
+  overflow-y: auto;
+  /* So the focus ring on the last row is not clipped by the scroll box. */
+  padding: 2px;
+}
+
+.library-piece {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: var(--space-4);
+  padding: var(--space-8);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--panel-2);
+  color: var(--ink-soft);
+  font-size: var(--font-1);
+  text-align: center;
+  cursor: pointer;
+  transition: background var(--motion-state), border-color var(--motion-state);
+}
+.library-piece:hover { background: var(--hover); border-color: var(--edge-strong); }
+.library-piece[aria-pressed="true"] { border-color: var(--accent); color: var(--ink); }
+
+.library-piece img {
+  width: 100%; height: 72px;
+  object-fit: contain;
+  /* The same chequerboard the resource thumbnails use: a white sticker on a
+     dark panel is invisible without something behind it. */
+  background:
+    conic-gradient(#2a2d36 90deg, #202329 90deg 180deg, #2a2d36 180deg 270deg, #202329 270deg)
+    0 0 / 8px 8px;
+  border-radius: var(--radius-2);
+}
+
+.library-piece .library-name {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.library-note { margin: 0; color: var(--ink-faint); font-size: var(--font-1); }
+.library-note.is-bad { color: var(--negative-500); }

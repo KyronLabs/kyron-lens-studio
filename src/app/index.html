@@ -46,6 +46,8 @@
     <h2 class="panel-title">Resources</h2>
     <ul id="resources" class="resources"></ul>
     <div class="panel-actions">
+      <button id="library" class="ghost small"
+              title="Free artwork published by Kyron. Nothing to draw and nothing to find.">Kyron library&#8230;</button>
       <button id="import" class="ghost small">Import artwork&#8230;</button>
       <button id="paint" class="ghost small">Paint&#8230;</button>
     </div>
@@ -110,6 +112,20 @@
       <button value="cancel" class="ghost">Cancel</button>
       <button type="button" id="paint-keep" class="primary">Keep</button>
     </div>
+  </form>
+</dialog>
+
+<dialog id="library-dialog" class="library-dialog">
+  <form method="dialog" class="library-form">
+    <div class="library-head">
+      <strong>Kyron library</strong>
+      <input id="library-search" class="library-search" type="search"
+             placeholder="Search by name or tag" aria-label="Search the library" spellcheck="false">
+      <span class="spacer"></span>
+      <button value="close" class="ghost small">Done</button>
+    </div>
+    <div id="library-grid" class="library-grid" role="list"></div>
+    <p id="library-note" class="library-note"></p>
   </form>
 </dialog>
 
