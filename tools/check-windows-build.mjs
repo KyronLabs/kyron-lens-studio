@@ -28,6 +28,10 @@ const REQUIRED_IN_ASAR = [
   'src/app/index.html',
   'src/app/app.js',
   'src/app/viewport.js',
+  // The handles. viewport.js imports both, so either one missing means the
+  // face never draws at all rather than the handles quietly not working.
+  'src/app/gesture.js',
+  'src/app/plane.js',
   'src/format/lens.js',
   'src/format/face.js',
   // The two copies. Gitignored, so these are the ones that go missing.

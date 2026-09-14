@@ -670,12 +670,27 @@ async function saveProject() {
 async function start() {
   wire();
 
-  viewport = new FaceViewport($('viewport'), (index, { dx, dy }) => {
+  viewport = new FaceViewport($('viewport'), (index, change) => {
     const attachment = editor.project.attachments[index];
     if (!attachment) return;
+
+    // A corner handle sends the width it dragged out, and the rotate handle
+    // the angle -- both absolute, because both are computed from where the
+    // drag started rather than from the last frame. Moving is still a delta.
+    if (change.width !== undefined) {
+      editor.setAttachment(index, { width: round(change.width) });
+      return;
+    }
+    if (change.rotation !== undefined) {
+      // Two places, which is what `attachmentFor` writes rotations to.
+      editor.setAttachment(index, {
+        rotation: Math.round(change.rotation * 100) / 100,
+      });
+      return;
+    }
     editor.setAttachment(index, {
-      offsetX: round((attachment.offsetX ?? 0) + dx),
-      offsetY: round((attachment.offsetY ?? 0) + dy),
+      offsetX: round((attachment.offsetX ?? 0) + change.dx),
+      offsetY: round((attachment.offsetY ?? 0) + change.dy),
     });
   });
   viewport.onSelect = (index) => editor.select({ kind: 'attachment', index });
