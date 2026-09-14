@@ -202,3 +202,25 @@ describe('a resize survives the round trip through the format', () => {
     assert.deepEqual(attachmentProblems(resized, 'attachment'), []);
   });
 });
+
+describe('which side the rotate handle goes', () => {
+  it('sits above the artwork by default', () => {
+    const { rotate } = handlePositions(4, 2, 0.5);
+    assert.deepEqual(rotate, { x: 0, y: 1.5 });
+  });
+
+  it('goes underneath when the caller says there is no room above', () => {
+    // Not hypothetical: the first attachment anybody adds is a star over the
+    // forehead, and an attachment near the top of the view put the handle
+    // seven pixels above the top edge of the canvas. The picture showed a
+    // stalk running up to nothing, and there was nothing to grab.
+    const { rotate } = handlePositions(4, 2, 0.5, { below: true });
+    assert.deepEqual(rotate, { x: 0, y: -1.5 });
+  });
+
+  it('keeps the corners where they are either way', () => {
+    const above = handlePositions(4, 2, 0.5).resize;
+    const below = handlePositions(4, 2, 0.5, { below: true }).resize;
+    assert.deepEqual(above, below);
+  });
+});

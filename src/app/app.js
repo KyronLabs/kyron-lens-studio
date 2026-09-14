@@ -53,6 +53,14 @@ function draw() {
   const lens = editor.lens;
   $('json').textContent = JSON.stringify(lens, null, 2);
   viewport?.setLens(lens, artwork);
+  // The selection travelled one way only: clicking the face told the tree,
+  // and picking the same attachment out of the tree told the face nothing. So
+  // an attachment selected from the list was highlighted everywhere except on
+  // the face it is on, and its handles -- which are the only way to resize or
+  // turn it -- never appeared at all.
+  viewport?.select(
+    editor.selection.kind === 'attachment' ? editor.selection.index : -1,
+  );
   drawPhoto(lens);
 
   // Decoding is asynchronous, so this cannot happen inline; what it can do is

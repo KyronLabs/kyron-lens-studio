@@ -374,7 +374,20 @@ export class FaceViewport {
     const perUnit = this._pixelsPerUnit();
     const size = HANDLE_PX / perUnit;
     const reach = ROTATE_REACH_PX / perUnit;
-    const { resize, rotate } = handlePositions(width, height, reach);
+
+    // Above the artwork unless that is off the top of the canvas. The first
+    // version always went above, and the first attachment anybody adds is a
+    // star over the forehead: its handle landed seven pixels above the top
+    // edge of the canvas, so the picture showed a stalk running up to
+    // nothing. Margin of the handle's own radius, so it is fully inside
+    // rather than half cut off.
+    const margin = (size * 1.3) / 2 / this.camera.top;
+    const top = plane
+      .localToWorld(new THREE.Vector3(0, height / 2 + reach + size, 0))
+      .project(this.camera).y;
+    const { resize, rotate } = handlePositions(width, height, reach, {
+      below: top > 1 - margin,
+    });
 
     for (const mesh of group.children) {
       const handle = mesh.userData.handle;
@@ -386,9 +399,10 @@ export class FaceViewport {
         mesh.position.set(rotate.x, rotate.y, 0.01);
         mesh.scale.set(size * 1.3, size * 1.3, 1);
       } else {
-        const span = rotate.y - height / 2;
-        mesh.position.set(0, height / 2 + span / 2, 0.005);
-        mesh.scale.set(size / 4, span, 1);
+        // The stalk, from whichever edge the handle went to.
+        const edge = Math.sign(rotate.y) * (height / 2);
+        mesh.position.set(0, (rotate.y + edge) / 2, 0.005);
+        mesh.scale.set(size / 4, Math.abs(rotate.y - edge), 1);
       }
     }
   }

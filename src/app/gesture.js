@@ -96,15 +96,22 @@ export function normalise(degrees) {
 /**
  * Where the handles sit on an attachment, in plane-local units.
  *
- * Four corners to resize by, and one above the top edge to turn by. The
- * rotate handle is outside the artwork because it has to be grabbable on an
+ * Four corners to resize by, and one clear of an edge to turn by. The rotate
+ * handle is outside the artwork because it has to be grabbable on an
  * attachment small enough that the corners already crowd each other.
+ *
+ * Which edge is the caller's to decide, and it matters: above the artwork is
+ * the convention, but an attachment near the top of the view -- which a hat,
+ * a halo or anything anchored to the forehead always is -- puts a handle
+ * reaching further up outside the canvas, where it can be neither seen nor
+ * grabbed. Underneath, it is drawn over the face and still works.
  *
  * @param {number} width  the plane's width in scene units
  * @param {number} height its height
- * @param {number} reach  how far above the top edge the rotate handle sits
+ * @param {number} reach  how far clear of the edge the rotate handle sits
+ * @param {{below?: boolean}} [options]
  */
-export function handlePositions(width, height, reach) {
+export function handlePositions(width, height, reach, { below = false } = {}) {
   const x = width / 2;
   const y = height / 2;
   return {
@@ -114,6 +121,6 @@ export function handlePositions(width, height, reach) {
       { name: 'se', x: x, y: -y },
       { name: 'sw', x: -x, y: -y },
     ],
-    rotate: { x: 0, y: y + reach },
+    rotate: { x: 0, y: below ? -(y + reach) : y + reach },
   };
 }
