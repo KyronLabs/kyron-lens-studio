@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import * as THREE from '../src/app/vendor/three.module.js';
-import { frameOf, localIn } from '../src/app/plane.js';
-import { rotationFromDrag } from '../src/app/gesture.js';
+import * as THREE from '../../src/app/vendor/three.module.js';
+import { frameOf, localIn } from '../../src/app/plane.js';
+import { rotationFromDrag } from '../../src/app/gesture.js';
 
 /** A camera ray straight down -z through a world point, as the studio's is. */
 const rayAt = (x, y) =>

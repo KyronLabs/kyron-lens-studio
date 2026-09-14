@@ -19,11 +19,16 @@ jobs:
         with:
           node-version: '22'
 
-      # No install before the tests: everything under src/format and src/app
-      # that a test touches is plain JavaScript with no dependencies, which is
-      # the property that keeps this job a few seconds long.
+      # No install before these: everything they touch is plain JavaScript
+      # with no dependencies, which is what keeps this job a few seconds long
+      # and is itself worth guarding -- a format file that quietly grew an
+      # import would fail here.
+      #
+      # `test:format` is the top level of test/ only. The one test that needs
+      # three.js lives in test/browser/ and runs in the job below, which
+      # installs and vendors anyway.
       - name: Test
-        run: npm test
+        run: npm run test:format
 
       # The vectors in this repository are a copy. A rule tightened in
       # kyron-lenses and not here means a lens passes the studio, gets
@@ -70,6 +75,11 @@ jobs:
 
       - name: Copy the two files the renderer serves itself
         run: npm run vendor
+
+      # Everything, now that three.js is where the renderer keeps it. This is
+      # where test/browser/ runs.
+      - name: Test
+        run: npm test
 
       # The runner image ships Chrome. The tool takes the path in $CHROME so
       # it is the same tool here and on a workstation.
