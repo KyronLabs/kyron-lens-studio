@@ -5,14 +5,9 @@
 //
 //     npm run test:app
 //
-// `tools/shoot.mjs` loads the renderer in headless Chromium, which exercises
-// the panels and the WebGL face but is not Electron: no preload, no file://
-// origin, and a set of command-line flags a packaged application does not
-// have. `node --test` covers the modules underneath, which are the half that
-// can be checked without a window.
-//
-// Neither saw any of these, and all three reached somebody using the
-// installed application:
+// `node --test` covers the modules underneath, which are the half that can be
+// checked without a window. It saw none of these, and all three reached
+// somebody using the installed application:
 //
 //   - a text field that took one character per click, because every
 //     keystroke rebuilt the field it was typed into;
@@ -23,6 +18,13 @@
 // Each is a sentence about what happens when somebody uses the window, and
 // the only way to check a sentence like that is to use the window. So this
 // starts Electron, drives it over the debugging protocol, and asserts.
+//
+// It also takes the pictures, which used to be a second script driving the
+// same interface in headless Chromium. Two drivers meant two things to update
+// when a control changed, and the one that was not updated broke in CI the
+// first time it mattered -- it was still setting `.value` on a `<select>`
+// after the last select had gone. One driver, and it is the one that runs the
+// real application.
 //
 // It needs a display. On a runner, and here, that is xvfb-run; the script
 // finds one or says what is missing.
@@ -189,9 +191,41 @@ async function check(what, body) {
   }
 }
 
+/** Page-side helpers, defined once in the window rather than in every step. */
+const HELPERS = `
+  const field = (label) => {
+    const found = [...document.querySelectorAll('.field')]
+      .find((it) => it.querySelector(':scope > label, :scope > .field-label')
+        ?.textContent.startsWith(label));
+    // Named. The failure this replaces was "Cannot set properties of null"
+    // from a line that did not say which control it meant.
+    if (!found) throw new Error('no field called ' + label);
+    return found;
+  };
+  const slide = (label, value) => {
+    const input = field(label).querySelector('input[type=range]');
+    if (!input) throw new Error(label + ' is not a slider');
+    input.value = String(value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  const pick = (label, option) => {
+    const where = field(label);
+    const segment = [...where.querySelectorAll('.segment')]
+      .find((it) => it.textContent === option);
+    if (segment) return segment.click();
+    // Longer lists are a popover rather than a segmented control, and both
+    // have to be driven the way somebody would.
+    where.querySelector('.picker').click();
+    const item = [...document.querySelectorAll('.popover-item')]
+      .find((it) => it.textContent === option);
+    if (!item) throw new Error(option + ' is not offered under ' + label);
+    item.click();
+  };
+`;
+
 await send('Runtime.enable');
 await send('Page.enable');
-await wait(2000);
+await wait(2500); // the mesh, and the first WebGL frame
 
 await check('the window draws its panels', async () => {
   const counts = await run(`return JSON.stringify({
@@ -246,10 +280,76 @@ await check('a name can be typed one character at a time', async () => {
     : `the field reads ${JSON.stringify(state.value)}, focused=${state.focused}`;
 });
 
+await shoot('01-opened');
+
+// A colour lens, dialled rather than typed.
+await check('the colour sliders reach the lens', async () => {
+  await run(`
+    ${HELPERS}
+    document.querySelectorAll('.tree li')[1].click();
+    slide('Temperature', 0.55);
+    slide('Contrast', 1.35);
+    slide('Saturation', 1.25);
+    return true;
+  `);
+  await wait(300);
+  // `lens.matrix`, not `lens.colour.matrix`: the project keeps the sliders
+  // that produced it, and the published lens carries only the twenty numbers.
+  const lens = JSON.parse(await run(`return document.getElementById('json').textContent`));
+  return Array.isArray(lens.matrix) && lens.matrix.length === 20
+    ? true
+    : `the lens has no colour matrix after three sliders were moved: ${
+        JSON.stringify(lens.matrix)}`;
+});
+await shoot('02-colour');
+
+// The same lens, over the reference chart, and as the file that gets
+// published.
+await run(`document.querySelector('[data-view=photo]').click(); return true`);
+await wait(300);
+await shoot('03-photo');
+await run(`document.querySelector('[data-view=json]').click(); return true`);
+await wait(200);
+await shoot('04-json');
+await run(`document.querySelector('[data-view=face]').click(); return true`);
+
 await check('nothing in the window is a native select', async () =>
   (await run(`return document.querySelectorAll('select').length`)) === 0
     ? true
     : 'a <select> is back');
+
+// Artwork dropped in through the real drop handler, because the alternative
+// is a hook in the application for the benefit of this file -- and a control
+// that exists only for a screenshot is what a studio should not have.
+await check('a dropped PNG becomes a resource', async () => {
+  await run(`
+    const canvas = document.createElement('canvas');
+    canvas.width = 240; canvas.height = 240;
+    const c = canvas.getContext('2d');
+    c.fillStyle = '#ffd54f';
+    c.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const r = i % 2 ? 48 : 110;
+      const a = (Math.PI * 2 * i) / 10 - Math.PI / 2;
+      c.lineTo(120 + Math.cos(a) * r, 120 + Math.sin(a) * r);
+    }
+    c.closePath(); c.fill();
+    c.strokeStyle = '#ff8f00'; c.lineWidth = 8; c.stroke();
+
+    const blob = await new Promise((done) => canvas.toBlob(done, 'image/png'));
+    const carried = new DataTransfer();
+    carried.items.add(new File([blob], 'star.png', { type: 'image/png' }));
+    document.dispatchEvent(new DragEvent('drop', {
+      dataTransfer: carried, bubbles: true, cancelable: true,
+    }));
+    return true;
+  `);
+  await wait(700);
+  const names = await run(`
+    return [...document.querySelectorAll('#resources .label')].map((it) => it.textContent);
+  `);
+  return names.includes('star.png') ? true : `the resources are ${names.join(', ')}`;
+});
 
 await check('adding an attachment selects it and shows its handles', async () => {
   await run(`document.getElementById('add-attachment').click(); return true`);
@@ -301,6 +401,63 @@ await check('every option of a small choice is visible', async () => {
   return same ? true : `the anchors read ${options.join(' / ')}`;
 });
 
+await check('the artwork can be chosen and the attachment placed', async () => {
+  await run(`
+    ${HELPERS}
+    pick('Artwork', 'star.png');
+    return true;
+  `);
+  await wait(400);
+  await run(`
+    ${HELPERS}
+    slide('Width', 1.1);
+    slide('Offset Y', -1.35);
+    return true;
+  `);
+  await wait(600);
+  const lens = JSON.parse(await run(`return document.getElementById('json').textContent`));
+  const [attachment] = lens.attachments ?? [];
+  if (!attachment) return 'the lens has no attachment';
+  return attachment.asset?.endsWith('star.png') && attachment.width === 1.1
+    ? true
+    : `the attachment is ${JSON.stringify(attachment)}`;
+});
+await shoot('05-attachment');
+
+await check('an effect can be added', async () => {
+  await run(`document.getElementById('add-frost').click(); return true`);
+  await wait(500);
+  const lens = JSON.parse(await run(`return document.getElementById('json').textContent`));
+  return lens.effects?.some((it) => it.kind === 'frost')
+    ? true
+    : 'adding Frost put no frost in the lens';
+});
+await shoot('06-frost');
+
+await check('the paint dialog opens and closes', async () => {
+  await run(`document.getElementById('paint').click(); return true`);
+  await wait(400);
+  const open = await run(`return document.getElementById('paint-dialog')?.open === true`);
+  if (!open) return 'the paint dialog did not open';
+  await shoot('07-paint');
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await wait(400);
+  return (await run(`return document.getElementById('paint-dialog')?.open === true`))
+    ? 'Escape did not close the paint dialog'
+    : true;
+});
+
+await check('the lens is publishable once it does something', async () => {
+  const state = await run(`return {
+    status: document.getElementById('logger-status').textContent,
+    blocked: document.getElementById('publish').disabled,
+  }`);
+  return state.blocked === false
+    ? true
+    : `Publish is still disabled, and the bar says "${state.status}"`;
+});
+
 await check('the first-run panel goes away, and only ever appears once',
   async () => (await run(`return document.querySelectorAll('.first-run').length`)) === 0
     ? true
@@ -331,7 +488,7 @@ await check('a lost graphics context is reported and recovered', async () => {
   return !lost && !trouble ? true : `after restore lost=${lost} trouble=${trouble}`;
 });
 
-await shoot('the-window');
+await shoot('08-recovered');
 
 // ---------------------------------------------------------------------------
 
